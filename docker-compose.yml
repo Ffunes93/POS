@@ -1,0 +1,57 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: pos_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: mygestion
+      MYSQL_ROOT_PASSWORD: hygro8714
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./DB_Mygestion.sql:/docker-entrypoint-initdb.d/init.sql
+  web:
+    build: ./backend
+    container_name: pos_django_api
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    # CAMBIO AQUÍ: Exponemos el 8001 hacia afuera, apuntando al 8000 de adentro
+    ports:
+      - "0.0.0.0:8001:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DB_HOST=db
+      - DB_NAME=mygestion
+      - DB_USER=root
+      - DB_PASS=hygro8714
+
+  redis:
+    image: redis:alpine
+    container_name: pos_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+
+  frontend:
+    build: ./frontend
+    container_name: pos_react_front
+    restart: unless-stopped
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "0.0.0.0:5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - web
+
+volumes:
+  db_data:

@@ -1,0 +1,1 @@
+import CajaPOS from './CajaPOS'; export default function App() { return <CajaPOS /> }
