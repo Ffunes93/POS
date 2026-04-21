@@ -6,7 +6,11 @@ from maestros.views import (
     GetListasPreciosJSON, GetDescuentosJSON, GetCondIvaJSON, 
     GetFormaPagoJSON, GetRubrosJSON, GetSubRubrosJSON, 
     GetParametrosJSON, IngresarComprobanteVentasJSON, 
-    AbrirCaja, CerrarCaja, LoginUsuario # <--- ASEGURATE QUE ESTÉ ACÁ
+    AbrirCaja, CerrarCaja, LoginUsuario, CrearUsuario, ListarUsuarios, BajaUsuario, EditarUsuario, ListarClientes,
+    GuardarCliente,ListarArticulosABM, GuardarArticulo, ListarProveedores, GuardarProveedor,
+    ListarFormasPago, GuardarFormaPago, InformeTotalesCondicion, InformeTotalesVendedor, ListarRubros,
+    GuardarRubro, ListarSubRubros, GuardarSubRubro, ObtenerEstadoCaja
+      # <--- ASEGURATE QUE ESTÉ ACÁ
 )
 
 urlpatterns = [
@@ -31,4 +35,23 @@ urlpatterns = [
     path('api/AbrirCaja/', AbrirCaja, name='AbrirCaja'),
     path('api/CerrarCaja/', CerrarCaja, name='CerrarCaja'),
     path('api/Login/', LoginUsuario, name='Login'),
+    path('api/CrearUsuario/', CrearUsuario, name='CrearUsuario'),
+    path('api/ListarUsuarios/', ListarUsuarios, name='ListarUsuarios'),
+    path('api/BajaUsuario/', BajaUsuario, name='BajaUsuario'),
+    path('api/EditarUsuario/', EditarUsuario, name='EditarUsuario'),
+    path('api/ListarClientes/', ListarClientes, name='ListarClientes'),
+    path('api/GuardarCliente/', GuardarCliente, name='GuardarCliente'),
+    path('api/ListarArticulosABM/', ListarArticulosABM, name='ListarArticulosABM'),
+    path('api/GuardarArticulo/', GuardarArticulo, name='GuardarArticulo'),
+    path('api/ListarProveedores/', ListarProveedores, name='ListarProveedores'),
+    path('api/GuardarProveedor/', GuardarProveedor, name='GuardarProveedor'),
+    path('api/ListarFormasPago/', ListarFormasPago, name='ListarFormasPago'),
+    path('api/GuardarFormaPago/', GuardarFormaPago, name='GuardarFormaPago'),
+    path('api/InformeTotalesCondicion/', InformeTotalesCondicion, name='InformeTotalesCondicion'),
+    path('api/InformeTotalesVendedor/', InformeTotalesVendedor, name='InformeTotalesVendedor'),
+    path('api/ListarRubros/', ListarRubros, name='ListarRubros'),
+    path('api/GuardarRubro/', GuardarRubro, name='GuardarRubro'),
+    path('api/ListarSubRubros/', ListarSubRubros, name='ListarSubRubros'),
+    path('api/GuardarSubRubro/', GuardarSubRubro, name='GuardarSubRubro'),
+    path('api/EstadoCaja/', ObtenerEstadoCaja, name='EstadoCaja'),
 ]

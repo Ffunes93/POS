@@ -93,3 +93,14 @@ class CerrarCajaSerializer(serializers.Serializer):
     otros_ingresos = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
     otros_egresos = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
     deja_billetes = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+
+class CrearUsuarioSerializer(serializers.Serializer):
+    nombre = serializers.CharField(max_length=50)
+    apellido = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
+    nombrelogin = serializers.CharField(max_length=50)
+    password = serializers.CharField(max_length=50)
+    email = serializers.EmailField(required=False, allow_blank=True, default='')
+    nivel_usuario = serializers.IntegerField(default=1)
+    cajero = serializers.IntegerField(default=1) # 1 = Es cajero
+    vendedor = serializers.IntegerField(default=1) # 1 = Es vendedor
+    autorizador = serializers.IntegerField(default=0)

@@ -1,0 +1,19 @@
+# Node / React
+node_modules/
+dist/
+build/
+
+# Python / Django
+__pycache__/
+*.pyc
+venv/
+env/
+db.sqlite3
+
+# Entornos y variables
+.env
+
+# Docker (si no querés subir datos de la DB)
+mysql-data/
+
+DB_Mygestion.sql
