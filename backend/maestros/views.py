@@ -12,7 +12,11 @@ from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 
-from .models import ArticulosRubros, ArticulosSubrub, Cajas, CajasRetiros, Ventas, VentasDet, CheqTarjCli
+from .models import (
+    ArticulosRubros, ArticulosSubrub, Cajas, CajasRetiros, 
+    Ventas, VentasDet, CheqTarjCli, TipocompCli, CtaCteCli, 
+    CajasDet, Compras, ComprasDet, FeTipocompCli
+)
 
 # Importamos todos los modelos y serializers juntos
 from .models import *
@@ -111,7 +115,7 @@ def IngresarComprobanteVentasJSON(request):
     try:
         with transaction.atomic():
             
-            # 1. Movim Autoincremental
+            # 1. Movim Autoincremental (Esto SÍ es idéntico al legacy: SELECT max(movim) FROM ventas [cite: 239])
             max_movim = Ventas.objects.aggregate(Max('movim'))['movim__max']
             nuevo_movim = (max_movim or 0) + 1
             
@@ -119,12 +123,33 @@ def IngresarComprobanteVentasJSON(request):
             cliente_codigo = int(data['Cliente_Codigo'])
             importe_total = data['Comprobante_ImporteTotal']
             
-            # 2. Guardar CABECERA (ventas) [cite: 2765, 2779, 2790]
+            # =================================================================
+            # 1.5 LÓGICA LEGACY REAL: Obtener ID y NRO desde tipocomp_cli
+            # =================================================================
+            tipo_comprob = data['Comprobante_Tipo'][:2]
+            pto_vta = data['Comprobante_PtoVenta']
+            
+            # Buscamos en la tabla contadora (Cambiar por FeTipocompCli si usas factura electrónica)
+            config_comprobante = TipocompCli.objects.filter(cod_compro=tipo_comprob).first()
+            
+            if not config_comprobante:
+                raise Exception(f"El comprobante {tipo_comprob} no está configurado en la tabla tipocomp_cli.")
+                
+            # Extraemos el ID real y sumamos 1 al último número usado
+            id_comprob_real = config_comprobante.id_compro
+            nro_comprob_final = config_comprobante.ultnro + 1
+            
+            # Actualizamos el contador en la tabla para la próxima venta
+            config_comprobante.ultnro = nro_comprob_final
+            config_comprobante.save()
+            # =================================================================
+
+            # 2. Guardar CABECERA (ventas)
             venta = Ventas.objects.create(
                 movim=nuevo_movim,
-                id_comprob=1, 
-                cod_comprob=data['Comprobante_Tipo'][:2],
-                nro_comprob=int(data['Comprobante_Numero']),
+                id_comprob=id_comprob_real,      # <-- AHORA USA EL ID REAL DEL TIPO (Ej: 1=FA, 6=FB)
+                cod_comprob=tipo_comprob,
+                nro_comprob=nro_comprob_final,   # <-- NÚMERO CORRELATIVO PERFECTO
                 cod_cli=cliente_codigo,
                 fecha_fact=data['Comprobante_FechaEmision'],
                 fecha_vto=data.get('Comprobante_FechaVencimiento', data['Comprobante_FechaEmision']),
@@ -136,16 +161,15 @@ def IngresarComprobanteVentasJSON(request):
                 descuento=0,
                 vendedor=int(data.get('Vendedor_Codigo', 1)),
                 moneda=int(data.get('Comprobante_Moneda', 1)),
-                cajero=1,  
-                nro_caja=1,
+                cajero=int(data.get('cajero', 1)),  
+                nro_caja=int(data.get('nro_caja', 1)), 
                 comprobante_tipo=data['Comprobante_Tipo'],
                 comprobante_letra=data['Comprobante_Letra'],
-                comprobante_pto_vta=data['Comprobante_PtoVenta'],
+                comprobante_pto_vta=pto_vta,
                 cond_venta=condicion_venta,
                 procesado=0, 
                 fecha_mod=timezone.now()
             )
-
             # 3. Guardar DETALLES y descontar STOCK [cite: 2766, 2780, 2791]
             for item in data['Comprobante_Items']:
                 cod_art = item['Item_CodigoArticulo']
