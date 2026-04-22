@@ -936,67 +936,61 @@ def ListarCompras(request):
 
 @api_view(['POST'])
 def IngresarComprobanteComprasJSON(request):
-    """Guarda factura de compra, actualiza costos y SUMA stock"""
+    """Guarda factura de compra, actualiza el costo_ult y SUMA el stock de los artículos"""
     data = request.data
     try:
         with transaction.atomic():
-            # 1. Movim Autoincremental (usamos la misma lógica de Ventas)
-            # En muchos sistemas legacy, compras y ventas comparten o tienen su propio contador.
-            # Aquí asumimos que usás la tabla 'compras' (ajustá el nombre si es distinto en tu models.py)
+            
             max_movim = Compras.objects.aggregate(Max('movim'))['movim__max'] or 0
             nuevo_movim = max_movim + 1
             
-            # 2. Guardar Cabecera de Compra
-            # Basado en la estructura de Ventas que ya manejás
+            # 1. Cabecera de la Compra
             compra = Compras.objects.create(
                 movim=nuevo_movim,
                 cod_prov=data.get('Proveedor_Codigo'),
                 fecha_fact=data.get('Comprobante_FechaEmision'),
+                fecha_vto=data.get('Comprobante_FechaEmision'), # Por defecto igual
                 nro_comprob=data.get('Comprobante_Numero'),
                 cod_comprob=data.get('Comprobante_Tipo', 'FC')[:2],
                 neto=data.get('Comprobante_Neto', 0),
                 iva_1=data.get('Comprobante_IVA', 0),
                 total=data.get('Comprobante_ImporteTotal', 0),
-                cond_compra=data.get('Comprobante_CondVenta', '1'), # 1 Contado, 2 Cta Cte
+                tot_general=data.get('Comprobante_ImporteTotal', 0),
+                cond_compra=data.get('Comprobante_CondVenta', '1'),
                 usuario=data.get('usuario', 'admin'),
-                fecha_mod=timezone.now()
+                fecha_mod=timezone.now(),
+                procesado=0
             )
 
-            # 3. Guardar Items y SUMAR Stock
+            # 2. Detalles y Ajuste de Stock
             for item in data.get('Comprobante_Items', []):
                 cod_art = item['Item_CodigoArticulo']
                 cantidad = float(item['Item_CantidadUM1'])
                 precio_costo = float(item['Item_PrecioUnitario'])
+                total_item = float(item['Item_ImporteTotal'])
 
-                # Grabamos el detalle
                 ComprasDet.objects.create(
                     movim=nuevo_movim,
                     cod_articulo=cod_art,
                     cantidad=cantidad,
                     precio_unit=precio_costo,
-                    total=item.get('Item_ImporteTotal')
+                    total=total_item,
+                    detalle=item.get('Item_DescripArticulo', ''),
+                    p_iva=item.get('Item_TasaIVAInscrip', 21),
+                    v_iva=total_item - (total_item / 1.21),
+                    procesado=0
                 )
                 
-                # REGLA DE NEGOCIO: Actualizamos Stock (+) y el último Costo
+                # REGLA DE NEGOCIO: Actualizamos Stock sumando, y actualizamos el último costo
                 Articulos.objects.filter(cod_art=cod_art).update(
                     stock=F('stock') + cantidad,
-                    costo_ult=precio_costo
-                )
-
-            # 4. Si es Cta Cte, generar deuda con proveedor
-            if compra.cond_compra == '2':
-                 CtaCteProv.objects.create(
-                    movim=nuevo_movim,
-                    cod_prov=compra.cod_prov,
-                    fecha=compra.fecha_fact,
-                    importe=compra.total,
-                    saldo=compra.total,
-                    detalle=f"Compra Fac. Nro {compra.nro_comprob}"
+                    costo_ult=precio_costo,
+                    ult_compra=timezone.now()
                 )
 
         return Response({
             "status": "success", 
-            "mensaje": "Compra ingresada y stock actualizado.",
+            "mensaje": "Compra registrada. Stock y costos actualizados.",
             "movim": nuevo_movim
         }, status=status.HTTP_201_CREATED)
 
@@ -1009,26 +1003,100 @@ def IngresarComprobanteComprasJSON(request):
 
 @api_view(['GET'])
 def ResumenCtaCteCliente(request):
-    """Devuelve el saldo y los movimientos de un cliente"""
-    cliente_id = request.query_params.get('cod_cli')
+    """Devuelve el saldo total y los comprobantes adeudados de un cliente"""
+    cod_cli = request.query_params.get('cod_cli')
+    if not cod_cli:
+        return Response({"status": "error", "mensaje": "Debe indicar el código de cliente."}, status=status.HTTP_400_BAD_REQUEST)
+        
     try:
-        # TODO: Leer tabla 'cta_cte_cli' donde saldo > 0
-        return Response({"status": "success", "saldo_total": 0, "movimientos": []}, status=status.HTTP_200_OK)
+        # Buscamos todos los movimientos de ese cliente donde todavía deba plata (saldo > 0)
+        movimientos = CtaCteCli.objects.filter(cod_cli=cod_cli, saldo__gt=0, anulado='N').values(
+            'movim', 'origen', 'fecha', 'cod_comprob', 'nro_comprob', 'detalle', 'imported', 'saldo', 'fec_vto'
+        ).order_by('fecha')
+        
+        # Sumamos el total de la deuda
+        saldo_total = sum(mov['saldo'] for mov in movimientos)
+        
+        return Response({
+            "status": "success", 
+            "saldo_total": saldo_total, 
+            "movimientos": list(movimientos)
+        }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 def InsertarReciboCtaCte(request):
-    """Registra el pago de una deuda, inserta en cajas y baja el saldo"""
+    """Registra el pago de una deuda de Cta Cte, impactando caja y descontando saldo"""
+    data = request.data
+    cod_cli = data.get('cod_cli')
+    importe_pago = float(data.get('importe_pago', 0))
+    cajero = data.get('cajero', 1)
+    nro_caja = data.get('nro_caja', 1)
+    
+    if importe_pago <= 0:
+        return Response({"status": "error", "mensaje": "El importe debe ser mayor a 0."}, status=status.HTTP_400_BAD_REQUEST)
+        
     try:
         with transaction.atomic():
-            # TODO: Crear Recibo
-            # TODO: Descontar saldo de los comprobantes más viejos a más nuevos
-            pass
-        return Response({"status": "success", "mensaje": "Cobro imputado correctamente."}, status=status.HTTP_200_OK)
+            # 1. Traer los comprobantes adeudados del más viejo al más nuevo
+            deudas = CtaCteCli.objects.filter(cod_cli=cod_cli, saldo__gt=0, anulado='N').order_by('fecha')
+            
+            pago_restante = importe_pago
+            
+            # 2. Descontar el saldo cascada (FIFO)
+            for deuda in deudas:
+                if pago_restante <= 0:
+                    break
+                    
+                if pago_restante >= deuda.saldo:
+                    # Paga la totalidad de este comprobante
+                    pago_restante -= float(deuda.saldo)
+                    deuda.saldo = 0
+                else:
+                    # Paga una parte de este comprobante
+                    deuda.saldo = float(deuda.saldo) - pago_restante
+                    pago_restante = 0
+                
+                deuda.save()
+
+            # 3. Generar el nuevo número de Movimiento
+            max_movim = CtaCteCli.objects.aggregate(Max('movim'))['movim__max'] or 0
+            nuevo_movim = max_movim + 1
+            
+            # 4. Insertar el Recibo (Comprobante de Pago) en Cta Cte
+            CtaCteCli.objects.create(
+                movim=nuevo_movim,
+                origen='RE', # Recibo
+                cod_cli=cod_cli,
+                fecha=timezone.now(),
+                id_comprob=2, # ID genérico para Recibos
+                cod_comprob='RE',
+                nro_comprob=nuevo_movim, # Usamos movim como comprobante
+                detalle='Cobro de Cta. Cte.',
+                imported=importe_pago,
+                saldo=0, # Un recibo no genera deuda
+                moneda=1,
+                anulado='N',
+                nro_caja=nro_caja,
+                cajero=cajero
+            )
+            
+            # 5. Ingresar el dinero en efectivo a la Caja (CajasDet)
+            CajasDet.objects.create(
+                nro_caja=nro_caja,
+                tipo='RE',
+                forma='EFE', # Asumimos efectivo por ahora
+                nombre='Cobranza Cta Cte',
+                importe_cajero=importe_pago,
+                importe_real=importe_pago,
+                procesado=0
+            )
+
+        return Response({"status": "success", "mensaje": f"Se cobraron ${importe_pago} correctamente."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 # ==========================================
 #     MÓDULO DE LISTAS DE PRECIOS Y PROMOCIONES
@@ -1036,24 +1104,22 @@ def InsertarReciboCtaCte(request):
 
 @api_view(['POST'])
 def ActualizarListaPrecio(request):
-    """Actualiza precios masivamente por Rubro o código de lista"""
-    porcentaje = float(request.data.get('porcentaje', 0))
-    rubro_id = request.data.get('rubro_id') # Opcional
+    """Actualiza el nombre de una lista de precios (Legacy: ActualizarListaPrecio)"""
+    _nombre = request.data.get('_nombre')
+    _lis = request.data.get('_lis')
     
+    if not _nombre or not _lis:
+        return Response({"status": "error", "mensaje": "Faltan parámetros (_nombre, _lis)"}, status=status.HTTP_400_BAD_REQUEST)
+        
     try:
-        with transaction.atomic():
-            # Si viene rubro, filtramos, si no, a todos los artículos
-            query = Articulos.objects.all()
-            if rubro_id:
-                query = query.filter(rubro=rubro_id)
+        # Buscamos la lista y la actualizamos (equivalente al UPDATE listasprecios SET NombreLista=...)
+        lista = Listasprecios.objects.filter(codigo=_lis).first()
+        if not lista:
+            return Response({"status": "error", "mensaje": "Lista de precios no encontrada."}, status=status.HTTP_404_NOT_FOUND)
             
-            # Aplicamos el aumento (precio * 1.10 para un 10%)
-            query.update(precio_1=F('precio_1') * (1 + porcentaje / 100))
-            
-        return Response({
-            "status": "success", 
-            "mensaje": f"Se actualizaron los precios en un {porcentaje}%."
-        }, status=status.HTTP_200_OK)
+        lista.nombrelista = _nombre
+        lista.save()
+        return Response({"status": "success", "mensaje": "Lista de precios actualizada."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1075,22 +1141,32 @@ def InsertarNuevaPromo(request):
 
 @api_view(['POST'])
 def InsertarNuevCausa(request):
-    """Registra motivos de ajuste de stock (Mismo nombre que en C#)"""
+    """Registra motivos de ajuste de stock (Legacy: InsertarNuevCausa)"""
     _id = request.data.get('codigo')
     _nom = request.data.get('detalle')
+    
     try:
-        # TODO: INSERT INTO stock_causaemision(codigo, detalle) [cite: 679]
-        return Response({"status": "success", "mensaje": "Causa guardada."}, status=status.HTTP_200_OK)
+        if StockCausaemision.objects.filter(codigo=_id).exists():
+             return Response({"status": "error", "mensaje": "El código de causa ya existe."}, status=status.HTTP_400_BAD_REQUEST)
+             
+        StockCausaemision.objects.create(codigo=_id, detalle=_nom)
+        return Response({"status": "success", "mensaje": "Causa guardada con éxito."}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 def ActualizarCausa(request):
-    """Actualiza motivos de ajuste de stock (Mismo nombre que en C#)"""
+    """Actualiza motivos de ajuste de stock (Legacy: ActualizarCausa)"""
     _id = request.data.get('codigo')
     _nom = request.data.get('detalle')
+    
     try:
-        # TODO: UPDATE stock_causaemision SET detalle=@Nombre WHERE codigo=@Cod [cite: 680]
-        return Response({"status": "success", "mensaje": "Causa actualizada."}, status=status.HTTP_200_OK)
+        causa = StockCausaemision.objects.filter(codigo=_id).first()
+        if not causa:
+            return Response({"status": "error", "mensaje": "Causa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+            
+        causa.detalle = _nom
+        causa.save()
+        return Response({"status": "success", "mensaje": "Causa actualizada con éxito."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

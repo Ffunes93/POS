@@ -214,22 +214,23 @@ export default function Facturacion({ user, cajaId }) {
     };
 
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarVenta/', {
+      // 👇 ACÁ ESTÁ EL CAMBIO CLAVE: Reemplazamos GuardarVenta por IngresarComprobanteVentasJSON
+      const res = await fetch('http://localhost:8001/api/IngresarComprobanteVentasJSON/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadVenta) // Tu variable de datos
+        body: JSON.stringify(payloadVenta) // Tu JSON armado
       });
+      
       const data = await res.json();
       
       if (res.ok && data.status === 'success') {
-        alert("Venta guardada con éxito. Nro: " + data.nro_comprob);
-        // Acá limpiarías el carrito y la pantalla
+        alert("Venta guardada con éxito. Movim: " + data.movim);
+        // setCarrito([]); // Limpiar carrito
       } else {
-        // ESTA ES LA CLAVE: Mostrar el error real de Django
-        alert("El servidor rechazó la venta:\n" + data.mensaje);
+        alert("El servidor rechazó la venta:\n" + (data.mensaje || JSON.stringify(data.errores)));
       }
     } catch (error) {
-      alert("Error comunicando con el servidor.");
+      alert("Error de conexión al generar la venta.");
     }
   };
 
