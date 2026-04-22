@@ -9,7 +9,9 @@ from maestros.views import (
     AbrirCaja, CerrarCaja, LoginUsuario, CrearUsuario, ListarUsuarios, BajaUsuario, EditarUsuario, ListarClientes,
     GuardarCliente,ListarArticulosABM, GuardarArticulo, ListarProveedores, GuardarProveedor,
     ListarFormasPago, GuardarFormaPago, InformeTotalesCondicion, InformeTotalesVendedor, ListarRubros,
-    GuardarRubro, ListarSubRubros, GuardarSubRubro, ObtenerEstadoCaja
+    GuardarRubro, ListarSubRubros, GuardarSubRubro, ObtenerEstadoCaja, ListarCompras, IngresarComprobanteComprasJSON,
+    ResumenCtaCteCliente, InsertarReciboCtaCte, ActualizarListaPrecio, InsertarNuevaPromo, InsertarNuevCausa, 
+    ActualizarCausa,
       # <--- ASEGURATE QUE ESTÉ ACÁ
 )
 
@@ -54,4 +56,19 @@ urlpatterns = [
     path('api/ListarSubRubros/', ListarSubRubros, name='ListarSubRubros'),
     path('api/GuardarSubRubro/', GuardarSubRubro, name='GuardarSubRubro'),
     path('api/EstadoCaja/', ObtenerEstadoCaja, name='EstadoCaja'),
+    # MÓDULO DE COMPRAS
+    path('api/ListarCompras/', ListarCompras, name='ListarCompras'),
+    path('api/IngresarComprobanteComprasJSON/', IngresarComprobanteComprasJSON, name='IngresarComprobanteComprasJSON'),
+
+    # MÓDULO DE CUENTAS CORRIENTES
+    path('api/ResumenCtaCteCliente/', ResumenCtaCteCliente, name='ResumenCtaCteCliente'),
+    path('api/InsertarReciboCtaCte/', InsertarReciboCtaCte, name='InsertarReciboCtaCte'),
+
+    # MÓDULO DE LISTAS DE PRECIOS Y PROMOS (Nombres Legacy)
+    path('api/ActualizarListaPrecio/', ActualizarListaPrecio, name='ActualizarListaPrecio'),
+    path('api/InsertarNuevaPromo/', InsertarNuevaPromo, name='InsertarNuevaPromo'),
+
+    # MÓDULO DE INVENTARIO (Nombres Legacy)
+    path('api/InsertarNuevCausa/', InsertarNuevCausa, name='InsertarNuevCausa'),
+    path('api/ActualizarCausa/', ActualizarCausa, name='ActualizarCausa'),
 ]

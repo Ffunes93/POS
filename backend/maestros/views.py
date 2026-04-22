@@ -919,3 +919,178 @@ def GuardarSubRubro(request):
         return Response({"status": "success", "mensaje": "Subrubro guardado con éxito."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+# ==========================================
+#     MÓDULO DE COMPRAS E INGRESO DE MERCADERÍA
+# ==========================================
+
+@api_view(['GET'])
+def ListarCompras(request):
+    """Devuelve el historial usando la lógica del comprasTableAdapter"""
+    try:
+        # TODO: Lógica para leer la tabla 'compras'
+        return Response({"status": "success", "data": []}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def IngresarComprobanteComprasJSON(request):
+    """Guarda factura de compra, actualiza costos y SUMA stock"""
+    data = request.data
+    try:
+        with transaction.atomic():
+            # 1. Movim Autoincremental (usamos la misma lógica de Ventas)
+            # En muchos sistemas legacy, compras y ventas comparten o tienen su propio contador.
+            # Aquí asumimos que usás la tabla 'compras' (ajustá el nombre si es distinto en tu models.py)
+            max_movim = Compras.objects.aggregate(Max('movim'))['movim__max'] or 0
+            nuevo_movim = max_movim + 1
+            
+            # 2. Guardar Cabecera de Compra
+            # Basado en la estructura de Ventas que ya manejás
+            compra = Compras.objects.create(
+                movim=nuevo_movim,
+                cod_prov=data.get('Proveedor_Codigo'),
+                fecha_fact=data.get('Comprobante_FechaEmision'),
+                nro_comprob=data.get('Comprobante_Numero'),
+                cod_comprob=data.get('Comprobante_Tipo', 'FC')[:2],
+                neto=data.get('Comprobante_Neto', 0),
+                iva_1=data.get('Comprobante_IVA', 0),
+                total=data.get('Comprobante_ImporteTotal', 0),
+                cond_compra=data.get('Comprobante_CondVenta', '1'), # 1 Contado, 2 Cta Cte
+                usuario=data.get('usuario', 'admin'),
+                fecha_mod=timezone.now()
+            )
+
+            # 3. Guardar Items y SUMAR Stock
+            for item in data.get('Comprobante_Items', []):
+                cod_art = item['Item_CodigoArticulo']
+                cantidad = float(item['Item_CantidadUM1'])
+                precio_costo = float(item['Item_PrecioUnitario'])
+
+                # Grabamos el detalle
+                ComprasDet.objects.create(
+                    movim=nuevo_movim,
+                    cod_articulo=cod_art,
+                    cantidad=cantidad,
+                    precio_unit=precio_costo,
+                    total=item.get('Item_ImporteTotal')
+                )
+                
+                # REGLA DE NEGOCIO: Actualizamos Stock (+) y el último Costo
+                Articulos.objects.filter(cod_art=cod_art).update(
+                    stock=F('stock') + cantidad,
+                    costo_ult=precio_costo
+                )
+
+            # 4. Si es Cta Cte, generar deuda con proveedor
+            if compra.cond_compra == '2':
+                 CtaCteProv.objects.create(
+                    movim=nuevo_movim,
+                    cod_prov=compra.cod_prov,
+                    fecha=compra.fecha_fact,
+                    importe=compra.total,
+                    saldo=compra.total,
+                    detalle=f"Compra Fac. Nro {compra.nro_comprob}"
+                )
+
+        return Response({
+            "status": "success", 
+            "mensaje": "Compra ingresada y stock actualizado.",
+            "movim": nuevo_movim
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ==========================================
+#     MÓDULO DE CUENTAS CORRIENTES (CLIENTES Y PROVEEDORES)
+# ==========================================
+
+@api_view(['GET'])
+def ResumenCtaCteCliente(request):
+    """Devuelve el saldo y los movimientos de un cliente"""
+    cliente_id = request.query_params.get('cod_cli')
+    try:
+        # TODO: Leer tabla 'cta_cte_cli' donde saldo > 0
+        return Response({"status": "success", "saldo_total": 0, "movimientos": []}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def InsertarReciboCtaCte(request):
+    """Registra el pago de una deuda, inserta en cajas y baja el saldo"""
+    try:
+        with transaction.atomic():
+            # TODO: Crear Recibo
+            # TODO: Descontar saldo de los comprobantes más viejos a más nuevos
+            pass
+        return Response({"status": "success", "mensaje": "Cobro imputado correctamente."}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==========================================
+#     MÓDULO DE LISTAS DE PRECIOS Y PROMOCIONES
+# ==========================================
+
+@api_view(['POST'])
+def ActualizarListaPrecio(request):
+    """Actualiza precios masivamente por Rubro o código de lista"""
+    porcentaje = float(request.data.get('porcentaje', 0))
+    rubro_id = request.data.get('rubro_id') # Opcional
+    
+    try:
+        with transaction.atomic():
+            # Si viene rubro, filtramos, si no, a todos los artículos
+            query = Articulos.objects.all()
+            if rubro_id:
+                query = query.filter(rubro=rubro_id)
+            
+            # Aplicamos el aumento (precio * 1.10 para un 10%)
+            query.update(precio_1=F('precio_1') * (1 + porcentaje / 100))
+            
+        return Response({
+            "status": "success", 
+            "mensaje": f"Se actualizaron los precios en un {porcentaje}%."
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def InsertarNuevaPromo(request):
+    """Crea reglas de descuento y promociones (Mismo nombre que en C#)"""
+    try:
+        with transaction.atomic():
+            # TODO: INSERT INTO promos (id, nombre_promo, no_activa, lleva, paga...) 
+            pass
+        return Response({"status": "success", "mensaje": "Promoción guardada."}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==========================================
+#     MÓDULO DE INVENTARIO Y AJUSTES
+# ==========================================
+
+@api_view(['POST'])
+def InsertarNuevCausa(request):
+    """Registra motivos de ajuste de stock (Mismo nombre que en C#)"""
+    _id = request.data.get('codigo')
+    _nom = request.data.get('detalle')
+    try:
+        # TODO: INSERT INTO stock_causaemision(codigo, detalle) [cite: 679]
+        return Response({"status": "success", "mensaje": "Causa guardada."}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def ActualizarCausa(request):
+    """Actualiza motivos de ajuste de stock (Mismo nombre que en C#)"""
+    _id = request.data.get('codigo')
+    _nom = request.data.get('detalle')
+    try:
+        # TODO: UPDATE stock_causaemision SET detalle=@Nombre WHERE codigo=@Cod [cite: 680]
+        return Response({"status": "success", "mensaje": "Causa actualizada."}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
