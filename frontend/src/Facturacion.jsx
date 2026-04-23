@@ -187,47 +187,138 @@ export default function Facturacion({ user, cajaId }) {
     setItems(items.filter(item => item.id !== id));
   };
 
+  // --- FUNCIÓN PARA IMPRIMIR EL TICKET ---
+  const imprimirTicket = (payload, nroMovimiento) => {
+    const ventana = window.open('', '_blank', 'width=400,height=600');
+    
+    // Armamos un diseño de ticket térmico estándar (80mm)
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Impresión de Ticket</title>
+          <style>
+            body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; width: 300px; color: black; }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            .divider { border-top: 1px dashed #000; margin: 10px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 4px 0; vertical-align: top; }
+          </style>
+        </head>
+        <body>
+          <div class="center bold" style="font-size: 16px;">MI EMPRESA POS</div>
+          <div class="center">Comprobante Nro: ${nroMovimiento}</div>
+          <div class="center">Fecha: ${new Date().toLocaleString()}</div>
+          <div class="divider"></div>
+          <div>Cliente: ${cliente.denominacion}</div>
+          <div>Cond. Venta: ${condVenta === '1' ? 'Contado' : 'Cta. Corriente'}</div>
+          <div class="divider"></div>
+          
+          <table>
+            <tr>
+              <th style="text-align:left;">Cant</th>
+              <th style="text-align:left;">Articulo</th>
+              <th class="right">Total</th>
+            </tr>
+            ${payload.Comprobante_Items.map(item => `
+              <tr>
+                <td>${item.Item_CantidadUM1}</td>
+                <td>${item.Item_DescripArticulo}<br><small>$${item.Item_PrecioUnitario.toFixed(2)} c/u</small></td>
+                <td class="right">$${item.Item_ImporteTotal.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </table>
+          
+          <div class="divider"></div>
+          <div class="right bold" style="font-size: 18px;">TOTAL: $${payload.Comprobante_ImporteTotal.toFixed(2)}</div>
+          <div class="center" style="margin-top: 20px;">¡Gracias por su compra!</div>
+          
+          <script>
+            // Dispara la ventana de impresión del navegador y luego cierra la pestaña
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+  };
+
+  // --- FUNCIÓN DE GUARDADO ACTUALIZADA ---
   const procesarVenta = async () => {
     if (items.length === 0) return alert("No hay artículos para facturar.");
+
+    // CÁLCULOS CONTABLES REDONDEADOS A 2 DECIMALES
+    const importeTotal = parseFloat(total.toFixed(2));
+    const importeNeto = parseFloat((importeTotal / 1.21).toFixed(2));
+    const importeIva = parseFloat((importeTotal - importeNeto).toFixed(2));
 
     const payloadVenta = {
       Cliente_Codigo: cliente.cod_cli,
       Comprobante_Tipo: tipoComprobante,
       Comprobante_Letra: "X",
-      Comprobante_PtoVenta: 1,
-      Comprobante_Numero: 1,
+      Comprobante_PtoVenta: "0001",
+      Comprobante_Numero: 0,
       Comprobante_FechaEmision: new Date().toISOString(),
-      Comprobante_ImporteTotal: total,
+      
+      Comprobante_Neto: importeNeto,
+      Comprobante_IVA: importeIva,
+      Comprobante_Exento: 0,
+      Comprobante_Descuento: 0,
+      Comprobante_ImporteTotal: importeTotal,
       Comprobante_CondVenta: condVenta,
       nro_caja: cajaId,
       Vendedor_Codigo: vendedor,
-      Comprobante_Items: items.map(i => ({
-        Item_CodigoArticulo: i.codigo,
-        Item_DescripArticulo: i.descripcion,
-        Item_CantidadUM1: i.cantidad,
-        Item_PrecioUnitario: i.precio,
-        Item_ImporteTotal: i.precio * i.cantidad
-      })),
+      
+      Comprobante_Items: items.map(i => {
+        // Redondeamos también los cálculos individuales por línea
+        const itemTotal = parseFloat((i.precio * i.cantidad).toFixed(2));
+        const itemNeto = parseFloat((itemTotal / 1.21).toFixed(2));
+        const itemIva = parseFloat((itemTotal - itemNeto).toFixed(2));
+
+        return {
+          Item_CodigoArticulo: i.codigo,
+          Item_DescripArticulo: i.descripcion,
+          Item_CantidadUM1: parseFloat(i.cantidad.toFixed(2)),
+          Item_PrecioUnitario: parseFloat(i.precio.toFixed(2)),
+          Item_ImporteTotal: itemTotal,
+          Item_TasaIVAInscrip: 21,
+          Item_ImporteIVAInscrip: itemIva, // <-- ¡Acá viaja redondeado!
+          Item_ImporteDescComercial: 0
+        };
+      }),
+      
       Comprobante_MediosPago: [
-        { MedioPago: condVenta === '1' ? 'EFE' : 'CTA', MedioPago_Importe: total }
+        { 
+          MedioPago: condVenta === '1' ? 'EFE' : 'CTA', 
+          MedioPago_Importe: importeTotal
+        }
       ]
     };
 
     try {
-      // 👇 ACÁ ESTÁ EL CAMBIO CLAVE: Reemplazamos GuardarVenta por IngresarComprobanteVentasJSON
       const res = await fetch('http://localhost:8001/api/IngresarComprobanteVentasJSON/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadVenta) // Tu JSON armado
+        body: JSON.stringify(payloadVenta) 
       });
       
       const data = await res.json();
       
       if (res.ok && data.status === 'success') {
-        alert("Venta guardada con éxito. Movim: " + data.movim);
-        // setCarrito([]); // Limpiar carrito
+        imprimirTicket(payloadVenta, data.movim);
+        setItems([]);
+        setCliente({ cod_cli: '1', denominacion: 'CONSUMIDOR FINAL' });
+        setCondVenta('1');
+        setTipoComprobante('TK');
+        setArticuloSearchText('');
       } else {
-        alert("El servidor rechazó la venta:\n" + (data.mensaje || JSON.stringify(data.errores)));
+        console.error("Error del backend:", data);
+        const errorTexto = JSON.stringify(data.errores || data.mensaje, null, 2);
+        prompt("⚠️ Ocurrió un error. Copiá el texto de abajo (Ctrl+C):", errorTexto);
       }
     } catch (error) {
       alert("Error de conexión al generar la venta.");

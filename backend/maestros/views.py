@@ -11,7 +11,7 @@ from django.db import connection
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
-
+from .serializers import *
 from .models import (
     ArticulosRubros, ArticulosSubrub, Cajas, CajasRetiros, 
     Ventas, VentasDet, CheqTarjCli, TipocompCli, CtaCteCli, 
@@ -19,8 +19,7 @@ from .models import (
 )
 
 # Importamos todos los modelos y serializers juntos
-from .models import *
-from .serializers import *
+
 
 # Función auxiliar para no repetir código de filtrado por fecha
 def filtrar_por_fecha(queryset, campo_fecha, fecha_str):
