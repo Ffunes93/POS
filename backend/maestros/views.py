@@ -6,16 +6,16 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
-from django.db.models import Max, F, Sum
+from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField
 from django.db import connection
 from django.db.models import Q
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 from django.utils import timezone
 from .serializers import *
 from .models import (
     ArticulosRubros, ArticulosSubrub, Cajas, CajasRetiros, 
     Ventas, VentasDet, CheqTarjCli, TipocompCli, CtaCteCli, 
-    CajasDet, Compras, ComprasDet, FeTipocompCli
+    CajasDet, Compras, ComprasDet, FeTipocompCli, Parametros,Proveedores
 )
 
 # Importamos todos los modelos y serializers juntos
@@ -96,6 +96,30 @@ class GetParametrosJSON(APIView):
     def get(self, request):
         return Response(ParametrosSerializer(Parametros.objects.all(), many=True).data)
 
+
+@api_view(['GET', 'POST'])
+def GestionarParametros(request):
+    # Buscamos el primer registro de parámetros (suele ser la sucursal actual)
+    parametro = Parametros.objects.first()
+
+    if request.method == 'GET':
+        if not parametro:
+            return Response({"status": "error", "mensaje": "No hay parámetros configurados aún."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ParametrosSerializer(parametro)
+        return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        if parametro:
+            # Actualiza el existente
+            serializer = ParametrosSerializer(parametro, data=request.data, partial=True)
+        else:
+            # Crea uno nuevo si la tabla estaba vacía
+            serializer = ParametrosSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"status": "success", "mensaje": "Parámetros guardados con éxito."})
+        return Response({"status": "error", "errores": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -841,19 +865,16 @@ def GuardarFormaPago(request):
         return Response({"status": "error", "mensaje": f"Error interno: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 # ==========================================
-#     NUEVOS INFORMES DE VENTAS
+#     MÓDULO DE INFORMES Y ESTADÍSTICAS
 # ==========================================
-
 @api_view(['GET'])
 def InformeTotalesCondicion(request):
     """Agrupa las ventas por Condición de Venta (Contado, Cta Cte, etc.)"""
     try:
-        # Agrupamos por cond_venta, contamos cuántos tickets hay y sumamos la plata
         reporte = Ventas.objects.values('cond_venta').annotate(
             cantidad_operaciones=Count('movim'),
             total_pesos=Sum('total')
         ).order_by('-total_pesos')
-
         return Response({"status": "success", "data": list(reporte)}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -866,11 +887,83 @@ def InformeTotalesVendedor(request):
             cantidad_operaciones=Count('movim'),
             total_pesos=Sum('total')
         ).order_by('-total_pesos')
-
         return Response({"status": "success", "data": list(reporte)}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+@api_view(['GET'])
+def InformeLibroIVAVentas(request):
+    """Genera el Libro IVA Ventas para una fecha determinada o rango de fechas"""
+    fecha_desde = request.query_params.get('desde')
+    fecha_hasta = request.query_params.get('hasta')
+    
+    try:
+        query = Ventas.objects.all()
+        
+        if fecha_desde and fecha_hasta:
+            query = query.filter(fecha_fact__range=[fecha_desde, fecha_hasta])
+            
+        # Obtenemos el detalle comprobante por comprobante
+        comprobantes = query.values(
+            'fecha_fact', 'cod_comprob', 'comprobante_pto_vta', 'nro_comprob',
+            'cod_cli', 'tot_general', 'neto', 'iva_1', 'exento'
+        ).order_by('fecha_fact', 'nro_comprob')
+        
+        # Obtenemos los totales del mes/rango
+        totales = query.aggregate(
+            suma_neto=Sum('neto'),
+            suma_iva=Sum('iva_1'),
+            suma_exento=Sum('exento'),
+            suma_total=Sum('tot_general')
+        )
+        
+        return Response({
+            "status": "success",
+            "totales": totales,
+            "comprobantes": list(comprobantes)
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def InformeRentabilidadArticulos(request):
+    """Muestra cuáles son los artículos más vendidos y la ganancia (Rentabilidad)"""
+    fecha_desde = request.query_params.get('desde')
+    fecha_hasta = request.query_params.get('hasta')
+    
+    try:
+        # Filtramos los detalles de venta por fecha (usando la cabecera)
+        query = VentasDet.objects.all()
+        
+        # En tu modelo, el costo lo sacamos del precio_unit_base o lo cruzamos con Articulos
+        # Acá hacemos la suma total de Cantidades y Dinero por Artículo
+        ranking = query.values('cod_articulo', 'detalle').annotate(
+            cantidad_vendida=Sum('cantidad'),
+            total_facturado=Sum('total')
+        ).order_by('-cantidad_vendida')[:100] # Top 100 más vendidos
+        
+        return Response({"status": "success", "data": list(ranking)}, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def InformeHistorialCajas(request):
+    """Trae el historial de cajas cerradas con sus diferencias de arqueo"""
+    try:
+        # Traemos solo las cajas cerradas (estado = 2)
+        cajas_cerradas = Cajas.objects.filter(estado=2).values(
+            'id', 'cajero', 'fecha_open', 'fecha_close', 
+            'saldo_ini_billetes', 'ventas', 'otros_egresos', 
+            'saldo_final_billetes', 'dife_billetes'
+        ).order_by('-id')[:50] # Últimas 50 cajas
+        
+        return Response({"status": "success", "data": list(cajas_cerradas)}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ==========================================

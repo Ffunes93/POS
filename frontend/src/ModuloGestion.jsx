@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import GestionUsuarios from './GestionUsuarios';
 import GestionClientes from './GestionClientes';
-import GestionFormasPago from './GestionFormasPago'; // <-- Importar el nuevo
+import GestionFormasPago from './GestionFormasPago'; 
+import ConfigParametros from './ConfigParametros'; // <-- Importado correctamente
+
 
 export default function ModuloGestion() {
   const [pestañaActual, setPestañaActual] = useState('CLIENTES');
@@ -27,15 +29,20 @@ export default function ModuloGestion() {
         <button style={tabStyle(pestañaActual === 'USUARIOS')} onClick={() => setPestañaActual('USUARIOS')}>
           🔐 Usuarios (Operadores)
         </button>
-        {/* NUEVA PESTAÑA */}
         <button style={tabStyle(pestañaActual === 'FORMAS_PAGO')} onClick={() => setPestañaActual('FORMAS_PAGO')}>
           💳 Formas de Pago
+        </button>
+        {/* 👇 NUEVA PESTAÑA AGREGADA */}
+        <button style={tabStyle(pestañaActual === 'PARAMETROS')} onClick={() => setPestañaActual('PARAMETROS')}>
+          ⚙️ Parámetros
         </button>
       </div>
 
       {pestañaActual === 'CLIENTES' && <GestionClientes />}
       {pestañaActual === 'USUARIOS' && <GestionUsuarios />}
-      {pestañaActual === 'FORMAS_PAGO' && <GestionFormasPago />} {/* NUEVO RENDER */}
+      {pestañaActual === 'FORMAS_PAGO' && <GestionFormasPago />} 
+      {/* 👇 NUEVO RENDER AGREGADO */}
+      {pestañaActual === 'PARAMETROS' && <ConfigParametros />} 
     </div>
   );
 }

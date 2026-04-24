@@ -104,3 +104,8 @@ class CrearUsuarioSerializer(serializers.Serializer):
     cajero = serializers.IntegerField(default=1) # 1 = Es cajero
     vendedor = serializers.IntegerField(default=1) # 1 = Es vendedor
     autorizador = serializers.IntegerField(default=0)
+
+class ParametrosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Parametros
+        fields = '__all__'

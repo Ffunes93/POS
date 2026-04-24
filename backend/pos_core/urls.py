@@ -11,7 +11,7 @@ from maestros.views import (
     ListarFormasPago, GuardarFormaPago, InformeTotalesCondicion, InformeTotalesVendedor, ListarRubros,
     GuardarRubro, ListarSubRubros, GuardarSubRubro, ObtenerEstadoCaja, ListarCompras, IngresarComprobanteComprasJSON,
     ResumenCtaCteCliente, InsertarReciboCtaCte, ActualizarListaPrecio, InsertarNuevaPromo, InsertarNuevCausa, 
-    ActualizarCausa,
+    ActualizarCausa, InformeLibroIVAVentas, InformeRentabilidadArticulos, InformeHistorialCajas, GestionarParametros
       # <--- ASEGURATE QUE ESTÉ ACÁ
 )
 
@@ -71,4 +71,12 @@ urlpatterns = [
     # MÓDULO DE INVENTARIO (Nombres Legacy)
     path('api/InsertarNuevCausa/', InsertarNuevCausa, name='InsertarNuevCausa'),
     path('api/ActualizarCausa/', ActualizarCausa, name='ActualizarCausa'),
+
+    # MÓDULO DE INFORMES
+    path('api/InformeLibroIVAVentas/', InformeLibroIVAVentas, name='InformeLibroIVAVentas'),
+    path('api/InformeRentabilidadArticulos/', InformeRentabilidadArticulos, name='InformeRentabilidadArticulos'),
+    path('api/InformeHistorialCajas/', InformeHistorialCajas, name='InformeHistorialCajas'),
+
+     # MÓDULO DE PARAMETROS
+    path('api/GestionarParametros/', GestionarParametros, name='GestionarParametros'),
 ]
