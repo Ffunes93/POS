@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Articulos, Clientes, Usuarios, Promos, PromosDet, ArticulosBom, 
     Listasprecios, Descuentos, CondIva, FormaPago, ArticulosRubros, 
-    ArticulosSubrub, Parametros
+    ArticulosSubrub, Parametros, TipocompCli
 )
 
 class ArticuloLegacySerializer(serializers.ModelSerializer):
@@ -108,4 +108,9 @@ class CrearUsuarioSerializer(serializers.Serializer):
 class ParametrosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Parametros
+        fields = '__all__'
+
+class TipocompCliSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipocompCli
         fields = '__all__'

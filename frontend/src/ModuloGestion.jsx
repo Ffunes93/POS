@@ -2,7 +2,8 @@ import { useState } from 'react';
 import GestionUsuarios from './GestionUsuarios';
 import GestionClientes from './GestionClientes';
 import GestionFormasPago from './GestionFormasPago'; 
-import ConfigParametros from './ConfigParametros'; // <-- Importado correctamente
+import ConfigParametros from './ConfigParametros';
+import GestionTipocomp from './GestionTipocomp'; // <-- Importado correctamente
 
 
 export default function ModuloGestion() {
@@ -36,13 +37,16 @@ export default function ModuloGestion() {
         <button style={tabStyle(pestañaActual === 'PARAMETROS')} onClick={() => setPestañaActual('PARAMETROS')}>
           ⚙️ Parámetros
         </button>
+        <button style={tabStyle(pestañaActual === 'TIPOCOMP')} onClick={() => setPestañaActual('TIPOCOMP')}>
+          🧾 Comprobantes
+        </button>
       </div>
 
       {pestañaActual === 'CLIENTES' && <GestionClientes />}
       {pestañaActual === 'USUARIOS' && <GestionUsuarios />}
       {pestañaActual === 'FORMAS_PAGO' && <GestionFormasPago />} 
-      {/* 👇 NUEVO RENDER AGREGADO */}
-      {pestañaActual === 'PARAMETROS' && <ConfigParametros />} 
+      {pestañaActual === 'PARAMETROS' && <ConfigParametros />}
+      {pestañaActual === 'TIPOCOMP' && <GestionTipocomp />} 
     </div>
   );
 }

@@ -3,6 +3,7 @@ import Facturacion from './Facturacion';
 import AperturaCierreCaja from './AperturaCierreCaja'; // <-- Acá importamos la pantalla que creamos recién
 import LibroIVAVentas from './LibroIVAVentas';
 import RentabilidadArticulos from './RentabilidadArticulos';
+import AnulacionComprobantes from './AnulacionComprobantes';
 
 export default function ModuloVentas({ user, cajaId, onAbrirCaja }) {
   // Por defecto arranca en Facturación si hay caja, sino en Cajas
@@ -77,9 +78,11 @@ export default function ModuloVentas({ user, cajaId, onAbrirCaja }) {
         {submodulo === 'LIBRO_IVA' && <LibroIVAVentas />}
 
         {submodulo === 'RENTABILIDAD' && <RentabilidadArticulos />}
+
+        {submodulo === 'ANULACION' && <AnulacionComprobantes />}
         
         {/* Placeholders para el resto */}
-        {['LOTES', 'ANULACION', 'PRESUPUESTOS', 'CONSULTA_COMP', 'CONSULTA_CAJAS', 'RENTABILIDAD', 'PRECIOS'].includes(submodulo) && (
+        {['LOTES', 'PRESUPUESTOS', 'CONSULTA_COMP', 'CONSULTA_CAJAS', 'RENTABILIDAD', 'PRECIOS'].includes(submodulo) && (
           <div style={{ padding: '40px', textAlign: 'center', color: '#7f8c8d' }}>
             <h2>⚙️ Submódulo en construcción</h2>
             <p>Esta sección se conectará próximamente con la base de datos.</p>

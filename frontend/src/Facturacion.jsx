@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // --- ESTILOS COMUNES ---
 const inputStyle = { width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' };
@@ -96,8 +96,39 @@ export default function Facturacion({ user, cajaId }) {
   const [cliente, setCliente] = useState({ cod_cli: '1', denominacion: 'CONSUMIDOR FINAL' });
   const [condVenta, setCondVenta] = useState('1'); 
   const [vendedor, setVendedor] = useState(user?.id || 1);
-  const [tipoComprobante, setTipoComprobante] = useState('TK'); 
+  const [tipoComprobante, setTipoComprobante] = useState('EA');
   
+  // ESTADO PARA GUARDAR LOS TIPOS DE LA BASE DE DATOS
+  const [tiposDisponibles, setTiposDisponibles] = useState([]);
+
+  // USE-EFFECT PARA CARGARLOS APENAS SE ABRE FACTURACIÓN
+  useEffect(() => {
+    const cargarTiposComprobante = async () => {
+      try {
+        const res = await fetch('http://localhost:8001/api/GestionarTipocompCli/');
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+          // Filtramos solo los permitidos para vender (excluimos Notas de Crédito, Recibos, etc)
+          const permitidos = ['EA', 'EB', 'EC', 'FA', 'FB', 'FC', 'PR'];
+          const filtrados = data.data.filter(t => permitidos.includes(t.cod_compro));
+          
+          setTiposDisponibles(filtrados);
+          
+          // Pre-seleccionamos 'EA' por defecto, o el primero que encuentre
+          if (filtrados.length > 0) {
+            const defaultComp = filtrados.find(t => t.cod_compro === 'EA') || filtrados[0];
+            setTipoComprobante(defaultComp.cod_compro);
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar comprobantes:", error);
+      }
+    };
+    
+    cargarTiposComprobante();
+  }, []);
+
   // --- ESTADOS DE DETALLE (GRILLA) ---
   const [articuloSearchText, setArticuloSearchText] = useState('');
   const [items, setItems] = useState([]);
@@ -162,19 +193,16 @@ export default function Facturacion({ user, cajaId }) {
   const buscarArticuloManual = async (e) => {
     e.preventDefault();
     if (!articuloSearchText) return;
-
     try {
       const res = await fetch(`http://localhost:8001/api/ListarArticulosABM/?buscar=${articuloSearchText}`);
       const data = await res.json();
-      
       const articulo = data.data.find(a => 
         a.cod_art.toUpperCase() === articuloSearchText.toUpperCase() || 
         a.barra === articuloSearchText
       );
-
       if (articulo) {
         agregarAlCarrito(articulo);
-        setArticuloSearchText(''); 
+        setArticuloSearchText('');
       } else {
         alert("❌ Artículo no encontrado. Verifique el código o use el buscador.");
       }
@@ -190,7 +218,6 @@ export default function Facturacion({ user, cajaId }) {
   // --- FUNCIÓN PARA IMPRIMIR EL TICKET ---
   const imprimirTicket = (payload, nroMovimiento) => {
     const ventana = window.open('', '_blank', 'width=400,height=600');
-    
     // Armamos un diseño de ticket térmico estándar (80mm)
     ventana.document.write(`
       <html>
@@ -250,7 +277,6 @@ export default function Facturacion({ user, cajaId }) {
   // --- FUNCIÓN DE GUARDADO ACTUALIZADA ---
   const procesarVenta = async () => {
     if (items.length === 0) return alert("No hay artículos para facturar.");
-
     // CÁLCULOS CONTABLES REDONDEADOS A 2 DECIMALES
     const importeTotal = parseFloat(total.toFixed(2));
     const importeNeto = parseFloat((importeTotal / 1.21).toFixed(2));
@@ -305,7 +331,6 @@ export default function Facturacion({ user, cajaId }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadVenta) 
       });
-      
       const data = await res.json();
       
       if (res.ok && data.status === 'success') {
@@ -313,7 +338,9 @@ export default function Facturacion({ user, cajaId }) {
         setItems([]);
         setCliente({ cod_cli: '1', denominacion: 'CONSUMIDOR FINAL' });
         setCondVenta('1');
-        setTipoComprobante('TK');
+        // Vuelve a poner el predeterminado
+        const defaultComp = tiposDisponibles.find(t => t.cod_compro === 'EA') || tiposDisponibles[0];
+        if (defaultComp) setTipoComprobante(defaultComp.cod_compro);
         setArticuloSearchText('');
       } else {
         console.error("Error del backend:", data);
@@ -361,10 +388,16 @@ export default function Facturacion({ user, cajaId }) {
         {/* FILA 2: DIVIDIDA EN 3 COLUMNAS IGUALES */}
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Tipo Comprobante</label>
-          <select value={tipoComprobante} onChange={e => setTipoComprobante(e.target.value)} style={inputStyle}>
-            <option value="TK">TICKET (TK)</option>
-            <option value="FA">FACTURA (FA)</option>
-            <option value="PR">PRESUPUESTO (PR)</option>
+          <select 
+            value={tipoComprobante} 
+            onChange={e => setTipoComprobante(e.target.value)} 
+            style={inputStyle}
+          >
+            {tiposDisponibles.map(tipo => (
+              <option key={tipo.id_compro} value={tipo.cod_compro}>
+                {tipo.cod_compro} - {tipo.nom_compro}
+              </option>
+            ))}
           </select>
         </div>
 

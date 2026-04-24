@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
-from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField
+from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField, Max
 from django.db import connection
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime, parse_date
@@ -17,6 +17,7 @@ from .models import (
     Ventas, VentasDet, CheqTarjCli, TipocompCli, CtaCteCli, 
     CajasDet, Compras, ComprasDet, FeTipocompCli, Parametros,Proveedores
 )
+
 
 # Importamos todos los modelos y serializers juntos
 
@@ -645,6 +646,40 @@ def EditarUsuario(request):
         return Response({"status": "error", "mensaje": "Usuario no encontrado."}, status=status.HTTP_404_NOT_FOUND)
     
 
+
+
+@api_view(['GET', 'POST', 'PUT']) # Sacamos el DELETE de los métodos permitidos
+def GestionarTipocompCli(request):
+    if request.method == 'GET':
+        tipos = TipocompCli.objects.all().order_by('id_compro')
+        serializer = TipocompCliSerializer(tipos, many=True)
+        return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        # Para crear un nuevo comprobante (Alta permitida)
+        serializer = TipocompCliSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"status": "success", "mensaje": "Tipo de comprobante creado con éxito."}, status=status.HTTP_201_CREATED)
+        return Response({"status": "error", "errores": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        # REGLA DE NEGOCIO: Solo se permite actualizar el último número
+        id_compro = request.data.get('id_compro')
+        try:
+            tipo = TipocompCli.objects.get(id_compro=id_compro)
+            
+            if 'ultnro' in request.data:
+                tipo.ultnro = request.data['ultnro']
+                # Usamos update_fields para asegurarnos que NINGÚN otro campo se modifique
+                tipo.save(update_fields=['ultnro']) 
+                return Response({"status": "success", "mensaje": f"Se actualizó el contador del comprobante {tipo.cod_compro} a {tipo.ultnro}."})
+            else:
+                return Response({"status": "error", "mensaje": "No se envió el nuevo número."}, status=status.HTTP_400_BAD_REQUEST)
+                
+        except TipocompCli.DoesNotExist:
+            return Response({"status": "error", "mensaje": "Comprobante no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        
 # ==========================================
 #         SUBMÓDULO DE CLIENTES
 # ==========================================
@@ -1286,3 +1321,177 @@ def ActualizarCausa(request):
         return Response({"status": "success", "mensaje": "Causa actualizada con éxito."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+# ==========================================
+#     MÓDULO DE ANULACIÓN DE COMPROBANTES
+# ==========================================
+
+@api_view(['GET'])
+def BuscarComprobanteVenta(request):
+    """Busca una venta específica por Tipo, Punto de Venta y Número"""
+    tipo = request.query_params.get('tipo', 'TK')
+    pto = request.query_params.get('pto', '1') # Ej: 1 o 0001
+    nro = request.query_params.get('nro')
+
+    try:
+        # Acomodamos el padding del punto de venta por si lo guardaron como "0001" o "1"
+        venta = Ventas.objects.filter(cod_comprob=tipo, nro_comprob=nro).filter(
+            comprobante_pto_vta__endswith=str(pto).zfill(4)[-1:] # Flexibilidad en la búsqueda
+        ).first()
+
+        if not venta:
+            return Response({"status": "error", "mensaje": "Comprobante no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Buscamos los artículos de esta venta
+        detalles = VentasDet.objects.filter(movim=venta.movim).values(
+            'cod_articulo', 'detalle', 'cantidad', 'precio_unit', 'total'
+        )
+        
+        data = {
+            "movim": venta.movim,
+            "fecha": venta.fecha_fact,
+            "cliente": venta.cod_cli,
+            "total": venta.tot_general,
+            "procesado": venta.procesado, # Si es -1, ya está anulado
+            "items": list(detalles)
+        }
+        return Response({"status": "success", "data": data}, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def AnularComprobanteVenta(request):
+    """Realiza la reversión contable emitiendo una NOTA DE CRÉDITO (NC)"""
+    movim_original = request.data.get('movim')
+    
+    try:
+        with transaction.atomic():
+            # 1. Buscar la venta original
+            venta_orig = Ventas.objects.filter(movim=movim_original).first()
+            if not venta_orig:
+                return Response({"status": "error", "mensaje": "No se encontró el movimiento original."}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Verificamos que no esté ya anulado (para no emitir dos NC para la misma venta)
+            if venta_orig.procesado == -1:
+                return Response({"status": "error", "mensaje": "Este comprobante ya posee una anulación/NC."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 2. Buscar configuración del tipo de comprobante "NC" (Nota de Crédito)
+            # 2. Mapeo exacto de Comprobantes a sus respectivas Notas de Crédito
+            mapa_anulaciones = {
+                'EA': 'KA', 'EB': 'KB', 'EC': 'KC',  # Electrónicas
+                'FA': 'CA', 'FB': 'CB', 'FC': 'CC',  # Manuales
+                'MA': 'NA', 'MB': 'NB',              # MiPyme
+                'PR': 'DV',                          # Presupuesto a Devolución (777)
+                'TK': 'NC'                           # Por si queda algún ticket viejo
+            }
+            
+            cod_nc = mapa_anulaciones.get(venta_orig.cod_comprob)
+            
+            if not cod_nc:
+                return Response({"status": "error", "mensaje": f"El comprobante original ({venta_orig.cod_comprob}) no tiene un código de anulación asignado en el sistema."}, status=status.HTTP_400_BAD_REQUEST)
+
+            config_nc = TipocompCli.objects.filter(cod_compro=cod_nc).first()
+
+            if not config_nc:
+                return Response({"status": "error", "mensaje": f"Falta configurar el comprobante '{cod_nc}' en la tabla TipocompCli."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Si el sistema legacy los separa por letra (Ej: NCA), buscamos ese:
+            if not config_nc:
+                config_nc = TipocompCli.objects.filter(cod_compro=f"NC{venta_orig.comprobante_letra}").first()
+
+            if not config_nc:
+                return Response({"status": "error", "mensaje": f"No se encontró la configuración del comprobante Nota de Crédito en la tabla TipocompCli."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 3. Preparar el nuevo ID y Número correlativo para la Nota de Crédito
+            max_movim = Ventas.objects.aggregate(Max('movim'))['movim__max']
+            nuevo_movim = (max_movim or 0) + 1
+            
+            nro_comprob_nc = config_nc.ultnro + 1
+            config_nc.ultnro = nro_comprob_nc
+            config_nc.save()
+
+            # 4. CREAR LA CABECERA DE LA NOTA DE CRÉDITO
+            nc = Ventas.objects.create(
+                movim=nuevo_movim,
+                id_comprob=config_nc.id_compro,
+                cod_comprob=config_nc.cod_compro,
+                nro_comprob=nro_comprob_nc,
+                cod_cli=venta_orig.cod_cli,
+                fecha_fact=timezone.now(),
+                fecha_vto=timezone.now(),
+                neto=venta_orig.neto,
+                iva_1=venta_orig.iva_1,
+                exento=venta_orig.exento,
+                total=venta_orig.total,
+                tot_general=venta_orig.tot_general,
+                descuento=venta_orig.descuento,
+                vendedor=venta_orig.vendedor,
+                moneda=venta_orig.moneda,
+                cajero=venta_orig.cajero,
+                nro_caja=venta_orig.nro_caja,
+                comprobante_tipo="NOTA DE CREDITO",
+                comprobante_letra=venta_orig.comprobante_letra,
+                comprobante_pto_vta=venta_orig.comprobante_pto_vta,
+                cond_venta=venta_orig.cond_venta,
+                procesado=0, 
+                observac=f"Anula Comp. {venta_orig.cod_comprob} N° {venta_orig.nro_comprob}",
+                fecha_mod=timezone.now()
+            )
+
+            # 5. CREAR LOS DETALLES DE LA NC Y RESTAURAR STOCK
+            detalles_orig = VentasDet.objects.filter(movim=movim_original)
+            for item in detalles_orig:
+                VentasDet.objects.create(
+                    movim=nuevo_movim,
+                    id_comprob=nc.id_comprob,
+                    cod_comprob=nc.cod_comprob,
+                    nro_comprob=nc.nro_comprob,
+                    cod_articulo=item.cod_articulo,
+                    cantidad=item.cantidad, 
+                    precio_unit=item.precio_unit,
+                    precio_unit_base=item.precio_unit_base,
+                    total=item.total,
+                    descuento=item.descuento,
+                    detalle=item.detalle,
+                    p_iva=item.p_iva,
+                    v_iva=item.v_iva,
+                    comprobante_tipo=nc.comprobante_tipo,
+                    comprobante_letra=nc.comprobante_letra,
+                    comprobante_pto_vta=nc.comprobante_pto_vta,
+                    procesado=0
+                )
+                
+                # Restauramos stock a las estanterías (Sumando)
+                Articulos.objects.filter(cod_art=item.cod_articulo).update(stock=F('stock') + item.cantidad)
+
+            # 6. ASENTAR EN CAJA / CTA CTE
+            if venta_orig.cond_venta == '2':
+                # Si fue Cta Cte, insertamos un movimiento negativo/N/C para limpiar el saldo
+                CtaCteCli.objects.create(
+                    movim=nuevo_movim, origen='N/C', cod_cli_id=venta_orig.cod_cli,
+                    fecha=timezone.now(), id_comprob=nc.id_comprob, cod_comprob=nc.cod_comprob,
+                    nro_comprob=nc.nro_comprob, detalle=f"S/Nota de Credito N° {nc.nro_comprob}",
+                    imported=-nc.total, saldo=0, fec_vto=timezone.now(), moneda=1, anulado='N',
+                    procesado=0, nro_caja=nc.nro_caja, comprobante_tipo=nc.comprobante_tipo,
+                    comprobante_letra=nc.comprobante_letra, comprobante_pto_vta=nc.comprobante_pto_vta
+                )
+            else:
+                # Si fue al contado, es una salida de dinero en la caja
+                CajasDet.objects.create(
+                    nro_caja=nc.nro_caja, tipo='N/C', forma='EFE',
+                    nombre=f"NC N° {nc.nro_comprob} (Devolución)",
+                    importe_cajero=-nc.total, importe_real=-nc.total, procesado=0
+                )
+
+            # 7. Marcar la factura original como procesada/anulada para que no la vuelvan a tocar
+            Ventas.objects.filter(movim=movim_original).update(procesado=-1)
+
+            return Response({
+                "status": "success", 
+                "mensaje": f"Se emitió la {nc.comprobante_tipo} ({nc.cod_comprob}) N° {nc.nro_comprob} correctamente. El dinero y el stock han sido revertidos."
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        return Response({"status": "error", "mensaje": f"Error al emitir NC: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
