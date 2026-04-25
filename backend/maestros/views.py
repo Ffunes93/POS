@@ -294,42 +294,93 @@ def IngresarComprobanteVentasJSON(request):
             # ... acá arriba termina el guardado de base de datos (CheqTarjCli, etc.) ...
 
         # =================================================================
-        # 6. GUARDAR RESPALDO DEL JSON EN DISCO
+        # 6. GUARDAR RESPALDO DEL JSON EN DISCO (CON DATOS REALES DE LA BD)
         # =================================================================
         try:
             import os
             import json
-            from django.core.serializers.json import DjangoJSONEncoder # 👇 Agregamos esta importación clave
+            from django.core.serializers.json import DjangoJSONEncoder
             
             # Armamos el nombre concatenado.
-            tipo_arch = data['Comprobante_Tipo']
-            letra_arch = data['Comprobante_Letra']
-            pto_arch = str(pto_vta).zfill(4)
-            nro_arch = str(nro_comprob_final).zfill(8)
+            tipo_arch = venta.cod_comprob
+            letra_arch = venta.comprobante_letra
+            pto_arch = str(venta.comprobante_pto_vta).zfill(4)
+            nro_arch = str(venta.nro_comprob).zfill(8)
             
             nombre_archivo = f"{tipo_arch}{letra_arch}{pto_arch}{nro_arch}.json"
-            
-            # Definimos la ruta usando la carpeta virtual de Linux
             ruta_carpeta = "/documentos_json"
             
             os.makedirs(ruta_carpeta, exist_ok=True)
             ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
             
-            # Actualizamos el JSON con los números finales que generó la BD
-            json_a_guardar = data.copy()
-            json_a_guardar['Comprobante_Numero'] = nro_comprob_final
-            json_a_guardar['movim'] = nuevo_movim
+            # 1. Armamos la cabecera reflejando exactamente la tabla "Ventas"
+            json_a_guardar = {
+                "movim": venta.movim,
+                "id_comprob": venta.id_comprob,
+                "cod_comprob": venta.cod_comprob,
+                "nro_comprob": venta.nro_comprob,
+                "cod_cli": venta.cod_cli,
+                "fecha_fact": venta.fecha_fact,
+                "fecha_vto": venta.fecha_vto,
+                "neto": venta.neto,
+                "iva_1": venta.iva_1,
+                "exento": venta.exento,
+                "total": venta.total,
+                "tot_general": venta.tot_general,
+                "descuento": venta.descuento,
+                "vendedor": venta.vendedor,
+                "moneda": venta.moneda,
+                "cajero": venta.cajero,
+                "nro_caja": venta.nro_caja,
+                "comprobante_tipo": venta.comprobante_tipo,
+                "comprobante_letra": venta.comprobante_letra,
+                "comprobante_pto_vta": venta.comprobante_pto_vta,
+                "cond_venta": venta.cond_venta,
+                "procesado": venta.procesado,
+                "fecha_mod": venta.fecha_mod,
+                "VentasDet": [],
+                "CheqTarjCli_Y_Caja": []
+            }
             
-            # Escribimos el archivo físicamente usando el codificador de Django
+            # 2. Agregamos los detalles reflejando la tabla "VentasDet"
+            for item in data['Comprobante_Items']:
+                json_a_guardar["VentasDet"].append({
+                    "cod_articulo": item['Item_CodigoArticulo'],
+                    "cantidad": item['Item_CantidadUM1'],
+                    "precio_unit": item['Item_PrecioUnitario'],
+                    "precio_unit_base": item['Item_PrecioUnitario'],
+                    "total": item.get('Item_Importe', item['Item_ImporteTotal']),
+                    "descuento": item['Item_ImporteDescComercial'],
+                    "detalle": item.get('Item_DescripArticulo', ''),
+                    "p_iva": item.get('Item_TasaIVAInscrip', 0),
+                    "v_iva": item.get('Item_ImporteIVAInscrip', 0)
+                })
+
+            # 3. Agregamos los pagos reflejando "CheqTarjCli" y "CajasDet"
+            for mp in medios_pago:
+                codigo_pago = str(mp.get('MedioPago', 'EFE'))
+                importe_pago = mp.get('MedioPago_Importe', 0)
+                nro_cupon = mp.get('MedioPago_NroCupon') or mp.get('MedioPago_NumeroCheque')
+                if not nro_cupon:
+                    nro_cupon = 0
+                
+                json_a_guardar["CheqTarjCli_Y_Caja"].append({
+                    "origen": "VTA",
+                    "tipo": codigo_pago,
+                    "importe": importe_pago,
+                    "entidad": mp.get('MedioPago_CodigoBanco', ''),
+                    "numero": nro_cupon,
+                    "moneda": mp.get('MedioPago_Moneda', 1),
+                    "cuota": mp.get('MedioPago_CantidadCuotas', 1),
+                    "es_tarjeta_o_cheque": codigo_pago not in ['EFE', '1', 'CTA', '2']
+                })
+
+            # Escribimos el archivo físicamente
             with open(ruta_completa, 'w', encoding='utf-8') as archivo:
-                # 👇 Le pasamos el cls=DjangoJSONEncoder para que sepa traducir las fechas
                 json.dump(json_a_guardar, archivo, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder)
                 
         except Exception as error_archivo:
             print(f"⚠️ Venta exitosa, pero no se pudo guardar el archivo JSON: {error_archivo}")
-        # =================================================================
-
-        # =================================================================
 
         return Response({
             "status": "success",
