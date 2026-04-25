@@ -139,7 +139,7 @@ def IngresarComprobanteVentasJSON(request):
     try:
         with transaction.atomic():
             
-            # 1. Movim Autoincremental (Esto SÍ es idéntico al legacy: SELECT max(movim) FROM ventas [cite: 239])
+            # 1. Movim Autoincremental
             max_movim = Ventas.objects.aggregate(Max('movim'))['movim__max']
             nuevo_movim = (max_movim or 0) + 1
             
@@ -153,17 +153,14 @@ def IngresarComprobanteVentasJSON(request):
             tipo_comprob = data['Comprobante_Tipo'][:2]
             pto_vta = data['Comprobante_PtoVenta']
             
-            # Buscamos en la tabla contadora (Cambiar por FeTipocompCli si usas factura electrónica)
             config_comprobante = TipocompCli.objects.filter(cod_compro=tipo_comprob).first()
             
             if not config_comprobante:
                 raise Exception(f"El comprobante {tipo_comprob} no está configurado en la tabla tipocomp_cli.")
                 
-            # Extraemos el ID real y sumamos 1 al último número usado
             id_comprob_real = config_comprobante.id_compro
             nro_comprob_final = config_comprobante.ultnro + 1
             
-            # Actualizamos el contador en la tabla para la próxima venta
             config_comprobante.ultnro = nro_comprob_final
             config_comprobante.save()
             # =================================================================
@@ -171,9 +168,9 @@ def IngresarComprobanteVentasJSON(request):
             # 2. Guardar CABECERA (ventas)
             venta = Ventas.objects.create(
                 movim=nuevo_movim,
-                id_comprob=id_comprob_real,      # <-- AHORA USA EL ID REAL DEL TIPO (Ej: 1=FA, 6=FB)
+                id_comprob=id_comprob_real,      
                 cod_comprob=tipo_comprob,
-                nro_comprob=nro_comprob_final,   # <-- NÚMERO CORRELATIVO PERFECTO
+                nro_comprob=nro_comprob_final,   
                 cod_cli=cliente_codigo,
                 fecha_fact=data['Comprobante_FechaEmision'],
                 fecha_vto=data.get('Comprobante_FechaVencimiento', data['Comprobante_FechaEmision']),
@@ -194,7 +191,8 @@ def IngresarComprobanteVentasJSON(request):
                 procesado=0, 
                 fecha_mod=timezone.now()
             )
-            # 3. Guardar DETALLES y descontar STOCK [cite: 2766, 2780, 2791]
+            
+            # 3. Guardar DETALLES y descontar STOCK
             for item in data['Comprobante_Items']:
                 cod_art = item['Item_CodigoArticulo']
                 cantidad_vendida = item['Item_CantidadUM1']
@@ -219,61 +217,131 @@ def IngresarComprobanteVentasJSON(request):
                     procesado=0
                 )
                 
-                # REGLA DE NEGOCIO: Descuento de Stock usando F() para evitar bloqueos
                 Articulos.objects.filter(cod_art=cod_art).update(stock=F('stock') - cantidad_vendida)
 
             # 4. REGLA DE NEGOCIO: CUENTA CORRIENTE (cta_cte_cli) 
-            # Si cond_venta es 2 (Cta. Cte.), impactamos la deuda del cliente
             if condicion_venta == '2':
                 CtaCteCli.objects.create(
                     movim=nuevo_movim,
                     origen='VTA',
-                    cod_cli_id=cliente_codigo, # Usamos el _id porque es ForeignKey en Django
+                    cod_cli_id=cliente_codigo, 
                     fecha=timezone.now(),
                     id_comprob=venta.id_comprob,
                     cod_comprob=venta.cod_comprob,
                     nro_comprob=venta.nro_comprob,
                     detalle="Venta Cta. Cte.",
                     imported=importe_total,
-                    saldo=importe_total, # Nace con saldo igual al total
+                    saldo=importe_total, 
                     fec_vto=venta.fecha_vto,
                     moneda=1,
                     anulado='N',
                     procesado=0,
-                    nro_caja=1,
+                    nro_caja=venta.nro_caja,
                     comprobante_tipo=venta.comprobante_tipo,
                     comprobante_letra=venta.comprobante_letra,
                     comprobante_pto_vta=venta.comprobante_pto_vta
                 )
                 
-            # 5. REGLA DE NEGOCIO: MEDIOS DE PAGO Y CAJAS [cite: 2768]
-            # (Ejemplo simplificado: Si es contado, guardamos en caja)
-            if condicion_venta == '1':
-                for pago in data.get('Comprobante_MediosPago', []):
-                    # Si el medio de pago es efectivo ('4' o 'EFE'), guardamos en caja
-                    CajasDet.objects.create(
-                        nro_caja=1, # Reemplazar con caja actual
-                        tipo='VTA',
-                        forma=pago.get('MedioPago', 'EFE'),
-                        nombre="Cobro Factura",
-                        importe_cajero=pago.get('MedioPago_Importe', 0),
-                        importe_real=pago.get('MedioPago_Importe', 0),
-                        procesado=0
+            # 5. REGLA DE NEGOCIO: MEDIOS DE PAGO Y CAJAS
+            medios_pago = data.get('Comprobante_MediosPago', [])
+            
+            for mp in medios_pago:
+                codigo_pago = str(mp.get('MedioPago', 'EFE')) 
+                importe_pago = mp.get('MedioPago_Importe', 0)
+                
+                # 1. Registro general en Caja (para que el cierre de caja sume el total de ingresos)
+                CajasDet.objects.create(
+                    nro_caja=venta.nro_caja,
+                    tipo='VTA',
+                    forma=codigo_pago,
+                    nombre=f"Cobro Venta {venta.cod_comprob} N° {venta.nro_comprob}",
+                    importe_cajero=importe_pago,
+                    importe_real=importe_pago,
+                    procesado=0
+                )
+
+                # 2. Guardar en Cheques y Tarjetas (EXCLUYENDO Efectivo y Cta. Cte.)
+                if codigo_pago not in ['EFE', '1', 'CTA', '2']: 
+                    
+                    # Intentamos sacar el número de cupón, si está vacío le ponemos un 0
+                    nro_cupon = mp.get('MedioPago_NroCupon') or mp.get('MedioPago_NumeroCheque')
+                    if not nro_cupon:
+                        nro_cupon = 0
+
+                    CheqTarjCli.objects.create(
+                        movim=venta.movim,
+                        origen='VTA',
+                        cod_cli=venta.cod_cli,
+                        tipo=codigo_pago,  
+                        importe=importe_pago,
+                        fecha_rece=venta.fecha_fact,
+                        fecha_vto=mp.get('MedioPago_FechaVencimiento', venta.fecha_fact),
+                        id_comprob=venta.id_comprob,
+                        cod_comprob=venta.cod_comprob,
+                        nro_comprob=venta.nro_comprob,
+                        entidad=mp.get('MedioPago_CodigoBanco', ''),
+                        numero=nro_cupon,
+                        moneda=mp.get('MedioPago_Moneda', 1),
+                        cuota=mp.get('MedioPago_CantidadCuotas', 1),
+                        estado='PENDIENTE',
+                        procesado=0,
+                        nro_caja=venta.nro_caja,
+                        cajero=venta.cajero,
+                        comprobante_tipo=venta.comprobante_tipo,
+                        comprobante_letra=venta.comprobante_letra,
+                        comprobante_pto_vta=venta.comprobante_pto_vta
                     )
+            # ... acá arriba termina el guardado de base de datos (CheqTarjCli, etc.) ...
+
+        # =================================================================
+        # 6. GUARDAR RESPALDO DEL JSON EN DISCO
+        # =================================================================
+        try:
+            import os
+            import json
+            from django.core.serializers.json import DjangoJSONEncoder # 👇 Agregamos esta importación clave
+            
+            # Armamos el nombre concatenado.
+            tipo_arch = data['Comprobante_Tipo']
+            letra_arch = data['Comprobante_Letra']
+            pto_arch = str(pto_vta).zfill(4)
+            nro_arch = str(nro_comprob_final).zfill(8)
+            
+            nombre_archivo = f"{tipo_arch}{letra_arch}{pto_arch}{nro_arch}.json"
+            
+            # Definimos la ruta usando la carpeta virtual de Linux
+            ruta_carpeta = "/documentos_json"
+            
+            os.makedirs(ruta_carpeta, exist_ok=True)
+            ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
+            
+            # Actualizamos el JSON con los números finales que generó la BD
+            json_a_guardar = data.copy()
+            json_a_guardar['Comprobante_Numero'] = nro_comprob_final
+            json_a_guardar['movim'] = nuevo_movim
+            
+            # Escribimos el archivo físicamente usando el codificador de Django
+            with open(ruta_completa, 'w', encoding='utf-8') as archivo:
+                # 👇 Le pasamos el cls=DjangoJSONEncoder para que sepa traducir las fechas
+                json.dump(json_a_guardar, archivo, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder)
+                
+        except Exception as error_archivo:
+            print(f"⚠️ Venta exitosa, pero no se pudo guardar el archivo JSON: {error_archivo}")
+        # =================================================================
+
+        # =================================================================
 
         return Response({
             "status": "success",
             "mensaje": "Comprobantes ingresados correctamente",
             "movim": nuevo_movim
-        }, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED)        
 
     except Exception as e:
         return Response({
             "status": "error",
             "mensaje": f"Error interno al guardar: {str(e)}"
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
 # ==========================================
 #     MÓDULO DE CAJAS (APERTURA Y CIERRE)
@@ -1327,6 +1395,29 @@ def ActualizarCausa(request):
 # ==========================================
 
 @api_view(['GET'])
+def UltimosComprobantesVenta(request):
+    """Trae los últimos 50 comprobantes emitidos para facilitar la anulación"""
+    try:
+        # Buscamos las últimas 50 ventas ordenadas por fecha/movimiento descendente
+        ultimas_ventas = Ventas.objects.all().order_by('-movim')[:50]
+        
+        data = []
+        for v in ultimas_ventas:
+            data.append({
+                "movim": v.movim,
+                "tipo": v.cod_comprob,
+                "letra": v.comprobante_letra or '',
+                "pto_vta": v.comprobante_pto_vta,
+                "nro": v.nro_comprob,
+                "fecha": v.fecha_fact,
+                "total": v.tot_general,
+            })
+            
+        return Response({"status": "success", "data": data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
 def BuscarComprobanteVenta(request):
     """Busca una venta específica por Tipo, Punto de Venta y Número"""
     tipo = request.query_params.get('tipo', 'TK')
@@ -1431,7 +1522,7 @@ def AnularComprobanteVenta(request):
                 moneda=venta_orig.moneda,
                 cajero=venta_orig.cajero,
                 nro_caja=venta_orig.nro_caja,
-                comprobante_tipo="NOTA DE CREDITO",
+                comprobante_tipo=config_nc.cod_compro,
                 comprobante_letra=venta_orig.comprobante_letra,
                 comprobante_pto_vta=venta_orig.comprobante_pto_vta,
                 cond_venta=venta_orig.cond_venta,
@@ -1466,9 +1557,10 @@ def AnularComprobanteVenta(request):
                 # Restauramos stock a las estanterías (Sumando)
                 Articulos.objects.filter(cod_art=item.cod_articulo).update(stock=F('stock') + item.cantidad)
 
-            # 6. ASENTAR EN CAJA / CTA CTE
+            # 6. ASENTAR DEVOLUCIÓN DE DINERO (Caja, Cta Cte y Tarjetas)
+            
             if venta_orig.cond_venta == '2':
-                # Si fue Cta Cte, insertamos un movimiento negativo/N/C para limpiar el saldo
+                # Si fue Cta Cte, limpiamos la deuda
                 CtaCteCli.objects.create(
                     movim=nuevo_movim, origen='N/C', cod_cli_id=venta_orig.cod_cli,
                     fecha=timezone.now(), id_comprob=nc.id_comprob, cod_comprob=nc.cod_comprob,
@@ -1478,12 +1570,40 @@ def AnularComprobanteVenta(request):
                     comprobante_letra=nc.comprobante_letra, comprobante_pto_vta=nc.comprobante_pto_vta
                 )
             else:
-                # Si fue al contado, es una salida de dinero en la caja
+                # Si fue al contado o tarjeta, revertimos en CajaDet
                 CajasDet.objects.create(
                     nro_caja=nc.nro_caja, tipo='N/C', forma='EFE',
                     nombre=f"NC N° {nc.nro_comprob} (Devolución)",
                     importe_cajero=-nc.total, importe_real=-nc.total, procesado=0
                 )
+                
+                # 👇 LÓGICA NUEVA: REVERSAR TARJETAS/CHEQUES EN CHEQ_TARJ_CLI
+                pagos_orig = CheqTarjCli.objects.filter(movim=movim_original)
+                for pago in pagos_orig:
+                    CheqTarjCli.objects.create(
+                        movim=nuevo_movim,  # Lo atamos a la N/C
+                        origen='N/C',
+                        cod_cli=pago.cod_cli,
+                        tipo=pago.tipo,
+                        importe=-pago.importe, # ⚠️ Importe NEGATIVO para cancelar el cupón
+                        fecha_rece=timezone.now(),
+                        fecha_vto=pago.fecha_vto,
+                        id_comprob=nc.id_comprob,
+                        cod_comprob=nc.cod_comprob,
+                        nro_comprob=nc.nro_comprob,
+                        cod_entidad=pago.cod_entidad,
+                        entidad=pago.entidad,
+                        numero=pago.numero,
+                        moneda=pago.moneda,
+                        cuota=pago.cuota,
+                        estado='ANULADO', # Marcamos el reverso como anulado/devuelto
+                        procesado=0,
+                        nro_caja=nc.nro_caja,
+                        cajero=nc.cajero,
+                        comprobante_tipo=nc.comprobante_tipo,
+                        comprobante_letra=nc.comprobante_letra,
+                        comprobante_pto_vta=nc.comprobante_pto_vta
+                    )
 
             # 7. Marcar la factura original como procesada/anulada para que no la vuelvan a tocar
             Ventas.objects.filter(movim=movim_original).update(procesado=-1)

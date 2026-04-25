@@ -98,6 +98,10 @@ export default function Facturacion({ user, cajaId }) {
   const [vendedor, setVendedor] = useState(user?.id || 1);
   const [tipoComprobante, setTipoComprobante] = useState('EA');
   
+  // 👇 NUEVOS ESTADOS PARA MEDIOS DE PAGO
+  const [medioPago, setMedioPago] = useState('EFE');
+  const [nroCupon, setNroCupon] = useState('');
+
   // ESTADO PARA GUARDAR LOS TIPOS DE LA BASE DE DATOS
   const [tiposDisponibles, setTiposDisponibles] = useState([]);
 
@@ -109,13 +113,11 @@ export default function Facturacion({ user, cajaId }) {
         const data = await res.json();
         
         if (data.status === 'success') {
-          // Filtramos solo los permitidos para vender (excluimos Notas de Crédito, Recibos, etc)
           const permitidos = ['EA', 'EB', 'EC', 'FA', 'FB', 'FC', 'PR'];
           const filtrados = data.data.filter(t => permitidos.includes(t.cod_compro));
           
           setTiposDisponibles(filtrados);
           
-          // Pre-seleccionamos 'EA' por defecto, o el primero que encuentre
           if (filtrados.length > 0) {
             const defaultComp = filtrados.find(t => t.cod_compro === 'EA') || filtrados[0];
             setTipoComprobante(defaultComp.cod_compro);
@@ -218,7 +220,6 @@ export default function Facturacion({ user, cajaId }) {
   // --- FUNCIÓN PARA IMPRIMIR EL TICKET ---
   const imprimirTicket = (payload, nroMovimiento) => {
     const ventana = window.open('', '_blank', 'width=400,height=600');
-    // Armamos un diseño de ticket térmico estándar (80mm)
     ventana.document.write(`
       <html>
         <head>
@@ -240,6 +241,7 @@ export default function Facturacion({ user, cajaId }) {
           <div class="divider"></div>
           <div>Cliente: ${cliente.denominacion}</div>
           <div>Cond. Venta: ${condVenta === '1' ? 'Contado' : 'Cta. Corriente'}</div>
+          <div>Pago: ${medioPago} ${nroCupon ? `(Cupón: ${nroCupon})` : ''}</div>
           <div class="divider"></div>
           
           <table>
@@ -262,7 +264,6 @@ export default function Facturacion({ user, cajaId }) {
           <div class="center" style="margin-top: 20px;">¡Gracias por su compra!</div>
           
           <script>
-            // Dispara la ventana de impresión del navegador y luego cierra la pestaña
             setTimeout(() => {
               window.print();
               window.close();
@@ -277,7 +278,10 @@ export default function Facturacion({ user, cajaId }) {
   // --- FUNCIÓN DE GUARDADO ACTUALIZADA ---
   const procesarVenta = async () => {
     if (items.length === 0) return alert("No hay artículos para facturar.");
-    // CÁLCULOS CONTABLES REDONDEADOS A 2 DECIMALES
+    if (condVenta === '1' && medioPago !== 'EFE' && !nroCupon) {
+      return alert("Debe ingresar el número de cupón o cheque para este medio de pago.");
+    }
+
     const importeTotal = parseFloat(total.toFixed(2));
     const importeNeto = parseFloat((importeTotal / 1.21).toFixed(2));
     const importeIva = parseFloat((importeTotal - importeNeto).toFixed(2));
@@ -300,7 +304,6 @@ export default function Facturacion({ user, cajaId }) {
       Vendedor_Codigo: vendedor,
       
       Comprobante_Items: items.map(i => {
-        // Redondeamos también los cálculos individuales por línea
         const itemTotal = parseFloat((i.precio * i.cantidad).toFixed(2));
         const itemNeto = parseFloat((itemTotal / 1.21).toFixed(2));
         const itemIva = parseFloat((itemTotal - itemNeto).toFixed(2));
@@ -312,15 +315,17 @@ export default function Facturacion({ user, cajaId }) {
           Item_PrecioUnitario: parseFloat(i.precio.toFixed(2)),
           Item_ImporteTotal: itemTotal,
           Item_TasaIVAInscrip: 21,
-          Item_ImporteIVAInscrip: itemIva, // <-- ¡Acá viaja redondeado!
+          Item_ImporteIVAInscrip: itemIva, 
           Item_ImporteDescComercial: 0
         };
       }),
       
+      // 👇 ACÁ MANDAMOS LOS DATOS DEL PAGO EXACTO AL BACKEND
       Comprobante_MediosPago: [
         { 
-          MedioPago: condVenta === '1' ? 'EFE' : 'CTA', 
-          MedioPago_Importe: importeTotal
+          MedioPago: condVenta === '2' ? 'CTA' : medioPago, 
+          MedioPago_Importe: importeTotal,
+          MedioPago_NroCupon: nroCupon || '0'
         }
       ]
     };
@@ -338,7 +343,8 @@ export default function Facturacion({ user, cajaId }) {
         setItems([]);
         setCliente({ cod_cli: '1', denominacion: 'CONSUMIDOR FINAL' });
         setCondVenta('1');
-        // Vuelve a poner el predeterminado
+        setMedioPago('EFE');
+        setNroCupon('');
         const defaultComp = tiposDisponibles.find(t => t.cod_compro === 'EA') || tiposDisponibles[0];
         if (defaultComp) setTipoComprobante(defaultComp.cod_compro);
         setArticuloSearchText('');
@@ -356,11 +362,11 @@ export default function Facturacion({ user, cajaId }) {
     <div style={{ position: 'relative' }}>
       <h2 style={{ marginTop: 0, color: '#2c3e50', borderBottom: '2px solid #ecf0f1', paddingBottom: '10px' }}>🧾 Emisión de Comprobante</h2>
       
-      {/* --- PANEL DE CABECERA AJUSTADO EN 2 FILAS --- */}
-      <div style={{ background: 'white', padding: '20px', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+      {/* --- PANEL DE CABECERA AJUSTADO PARA NUEVOS CAMPOS --- */}
+      <div style={{ background: 'white', padding: '20px', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
         
-        {/* FILA 1: CLIENTE OCUPA LAS 3 COLUMNAS */}
-        <div style={{ gridColumn: 'span 3' }}>
+        {/* FILA 1: CLIENTE */}
+        <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Cliente</label>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
             <input 
@@ -385,33 +391,53 @@ export default function Facturacion({ user, cajaId }) {
           </div>
         </div>
 
-        {/* FILA 2: DIVIDIDA EN 3 COLUMNAS IGUALES */}
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Tipo Comprobante</label>
-          <select 
-            value={tipoComprobante} 
-            onChange={e => setTipoComprobante(e.target.value)} 
-            style={inputStyle}
-          >
-            {tiposDisponibles.map(tipo => (
-              <option key={tipo.id_compro} value={tipo.cod_compro}>
-                {tipo.cod_compro} - {tipo.nom_compro}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* FILA 2: DATOS DE VENTA */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Tipo Comprobante</label>
+            <select value={tipoComprobante} onChange={e => setTipoComprobante(e.target.value)} style={inputStyle}>
+              {tiposDisponibles.map(tipo => (
+                <option key={tipo.id_compro} value={tipo.cod_compro}>
+                  {tipo.cod_compro} - {tipo.nom_compro}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Condición de Venta</label>
-          <select value={condVenta} onChange={e => setCondVenta(e.target.value)} style={inputStyle}>
-            <option value="1">1 - Contado</option>
-            <option value="2">2 - Cta. Corriente</option>
-          </select>
-        </div>
-        
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Código Vendedor</label>
-          <input type="number" value={vendedor} onChange={e => setVendedor(e.target.value)} style={{ ...inputStyle, textAlign: 'center' }} />
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Condición de Venta</label>
+            <select value={condVenta} onChange={e => { setCondVenta(e.target.value); if(e.target.value === '2') setMedioPago('CTA'); }} style={inputStyle}>
+              <option value="1">1 - Contado</option>
+              <option value="2">2 - Cta. Corriente</option>
+            </select>
+          </div>
+          
+          {/* 👇 SELECTOR DE MEDIOS DE PAGO */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Medio de Pago</label>
+            <select value={medioPago} onChange={e => setMedioPago(e.target.value)} style={inputStyle} disabled={condVenta === '2'}>
+              <option value="EFE">💵 Efectivo</option>
+              <option value="TAR">💳 Tarjeta / Débito</option>
+              <option value="MP">📱 MercadoPago / QR</option>
+              <option value="CHE">🏦 Cheque</option>
+              <option value="CTA" disabled>📒 Cta. Cte.</option>
+            </select>
+          </div>
+
+          {/* 👇 INPUT DINÁMICO DE CUPÓN (Solo aparece si no es efectivo/cta) */}
+          <div>
+             {medioPago !== 'EFE' && medioPago !== 'CTA' ? (
+                <>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#e67e22', marginBottom: '5px' }}>N° Cupón / Cheque</label>
+                  <input type="number" value={nroCupon} onChange={e => setNroCupon(e.target.value)} style={{ ...inputStyle, borderColor: '#e67e22', outlineColor: '#e67e22' }} placeholder="Ej: 4589" />
+                </>
+             ) : (
+                <>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#7f8c8d', marginBottom: '5px' }}>Código Vendedor</label>
+                  <input type="number" value={vendedor} onChange={e => setVendedor(e.target.value)} style={{ ...inputStyle, textAlign: 'center' }} />
+                </>
+             )}
+          </div>
         </div>
       </div>
 
@@ -467,7 +493,7 @@ export default function Facturacion({ user, cajaId }) {
       {/* --- PIE Y TOTALES --- */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '20px' }}>
         <div style={{ color: '#7f8c8d' }}>
-          Operando en Caja # {cajaId}
+          Operando en Caja # {cajaId} {medioPago !== 'EFE' && medioPago !== 'CTA' && !nroCupon && <span style={{ color: '#e74c3c', fontWeight: 'bold', marginLeft: '10px' }}>⚠️ Falta N° de Cupón</span>}
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

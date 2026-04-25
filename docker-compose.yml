@@ -14,6 +14,11 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./DB_Mygestion.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   web:
     build: ./backend
     container_name: pos_django_api
@@ -21,6 +26,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app
+      - /mnt/c/Documentos:/documentos_json
     # CAMBIO AQUÍ: Exponemos el 8001 hacia afuera, apuntando al 8000 de adentro
     ports:
       - "0.0.0.0:8001:8000"

@@ -12,7 +12,7 @@ from maestros.views import (
     GuardarRubro, ListarSubRubros, GuardarSubRubro, ObtenerEstadoCaja, ListarCompras, IngresarComprobanteComprasJSON,
     ResumenCtaCteCliente, InsertarReciboCtaCte, ActualizarListaPrecio, InsertarNuevaPromo, InsertarNuevCausa, 
     ActualizarCausa, InformeLibroIVAVentas, InformeRentabilidadArticulos, InformeHistorialCajas, GestionarParametros,
-    BuscarComprobanteVenta, AnularComprobanteVenta, GestionarTipocompCli
+    BuscarComprobanteVenta, AnularComprobanteVenta, GestionarTipocompCli, UltimosComprobantesVenta
       # <--- ASEGURATE QUE ESTÉ ACÁ
 )
 
@@ -84,6 +84,7 @@ urlpatterns = [
     # MÓDULO DE ANULACIONES
     path('api/BuscarComprobanteVenta/', BuscarComprobanteVenta, name='BuscarComprobanteVenta'),
     path('api/AnularComprobanteVenta/', AnularComprobanteVenta, name='AnularComprobanteVenta'),
+    path('api/UltimosComprobantesVenta/', UltimosComprobantesVenta, name='UltimosComprobantesVenta'),
 
     # MÓDULO DE GESTION
     path('api/GestionarTipocompCli/', GestionarTipocompCli, name='GestionarTipocompCli'),
