@@ -31,8 +31,10 @@ services:
     ports:
       - "0.0.0.0:8001:8000"
     depends_on:
-      - db
-      - redis
+       db:
+        condition: service_healthy
+       redis:
+        condition: service_started
     environment:
       - DB_HOST=db
       - DB_NAME=mygestion
@@ -56,7 +58,7 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true           
     # AGREGAMOS --host para que Vite escuche las peticiones de Docker
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    command: sh -c "npm install xlsx && npm install && npm run dev -- --host 0.0.0.0"
     ports:
       - "5173:5173"
     volumes:

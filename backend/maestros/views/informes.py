@@ -1,18 +1,21 @@
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField, Subquery, OuterRef
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from ..models import Ventas, VentasDet, Cajas
-
+from ..models import Ventas, VentasDet, Cajas, Articulos
+from .utils import aplicar_rango_fechas
 
 @api_view(['GET'])
 def InformeTotalesCondicion(request):
-    """Ventas agrupadas por condición de venta (Contado, Cta. Cte., etc.)."""
+    """Ventas agrupadas por condición de venta con filtro de fecha."""
     try:
+        queryset = Ventas.objects.all()
+        # Aplicamos el filtro uniforme usando la utilidad
+        queryset = aplicar_rango_fechas(request, queryset, 'fecha_fact')
+        
         reporte = (
-            Ventas.objects
-            .values('cond_venta')
+            queryset.values('cond_venta')
             .annotate(cantidad_operaciones=Count('movim'), total_pesos=Sum('total'))
             .order_by('-total_pesos')
         )
@@ -23,11 +26,13 @@ def InformeTotalesCondicion(request):
 
 @api_view(['GET'])
 def InformeTotalesVendedor(request):
-    """Ventas agrupadas por vendedor."""
+    """Ventas agrupadas por vendedor con filtro de fecha."""
     try:
+        queryset = Ventas.objects.all()
+        queryset = aplicar_rango_fechas(request, queryset, 'fecha_fact')
+        
         reporte = (
-            Ventas.objects
-            .values('vendedor')
+            queryset.values('vendedor')
             .annotate(cantidad_operaciones=Count('movim'), total_pesos=Sum('total'))
             .order_by('-total_pesos')
         )
@@ -38,21 +43,17 @@ def InformeTotalesVendedor(request):
 
 @api_view(['GET'])
 def InformeLibroIVAVentas(request):
-    """Libro IVA Ventas para un rango de fechas."""
-    fecha_desde = request.query_params.get('desde')
-    fecha_hasta = request.query_params.get('hasta')
-
+    """Libro IVA Ventas estandarizado con la utilidad de fechas."""
     try:
-        query = Ventas.objects.all()
-        if fecha_desde and fecha_hasta:
-            query = query.filter(fecha_fact__range=[fecha_desde, fecha_hasta])
+        queryset = Ventas.objects.all()
+        queryset = aplicar_rango_fechas(request, queryset, 'fecha_fact')
 
-        comprobantes = query.values(
+        comprobantes = queryset.values(
             'fecha_fact', 'cod_comprob', 'comprobante_pto_vta', 'nro_comprob',
             'cod_cli', 'tot_general', 'neto', 'iva_1', 'exento',
         ).order_by('fecha_fact', 'nro_comprob')
 
-        totales = query.aggregate(
+        totales = queryset.aggregate(
             suma_neto=Sum('neto'),
             suma_iva=Sum('iva_1'),
             suma_exento=Sum('exento'),
@@ -66,14 +67,22 @@ def InformeLibroIVAVentas(request):
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 @api_view(['GET'])
 def InformeRentabilidadArticulos(request):
-    """Top 100 artículos más vendidos por cantidad."""
+    """Top 100 artículos con filtro de fecha aplicado a la cabecera de la venta."""
     try:
+        # 1. Filtramos primero la tabla cabecera (Ventas)
+        ventas_filtradas = Ventas.objects.all()
+        ventas_filtradas = aplicar_rango_fechas(request, ventas_filtradas, 'fecha_fact')
+        
+        # 2. Extraemos solo los IDs (movim) de esas ventas
+        movims_validos = ventas_filtradas.values_list('movim', flat=True)
+
+        # 3. Filtramos los detalles usando movim__in
+        queryset = VentasDet.objects.filter(movim__in=movims_validos)
+        
         ranking = (
-            VentasDet.objects
-            .values('cod_articulo', 'detalle')
+            queryset.values('cod_articulo', 'detalle')
             .annotate(cantidad_vendida=Sum('cantidad'), total_facturado=Sum('total'))
             .order_by('-cantidad_vendida')[:100]
         )
@@ -84,12 +93,13 @@ def InformeRentabilidadArticulos(request):
 
 @api_view(['GET'])
 def InformeHistorialCajas(request):
-    """Historial de las últimas 50 cajas cerradas con sus diferencias de arqueo."""
+    """Historial de cajas cerradas con filtro por fecha de apertura."""
     try:
+        queryset = Cajas.objects.filter(estado=2)
+        queryset = aplicar_rango_fechas(request, queryset, 'fecha_open')
+        
         cajas_cerradas = (
-            Cajas.objects
-            .filter(estado=2)
-            .values(
+            queryset.values(
                 'id', 'cajero', 'fecha_open', 'fecha_close',
                 'saldo_ini_billetes', 'ventas', 'otros_egresos',
                 'saldo_final_billetes', 'dife_billetes',
@@ -99,3 +109,74 @@ def InformeHistorialCajas(request):
         return Response({"status": "success", "data": list(cajas_cerradas)}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"status": "error", "mensaje": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def InformeMargenUtilidad(request):
+    """Rentabilidad real con filtro de fechas."""
+    try:
+        ventas_filtradas = Ventas.objects.all()
+        ventas_filtradas = aplicar_rango_fechas(request, ventas_filtradas, 'fecha_fact')
+        movims_validos = ventas_filtradas.values_list('movim', flat=True)
+
+        queryset = VentasDet.objects.filter(movim__in=movims_validos)
+        
+        reporte = (
+            queryset.annotate(
+                utilidad=ExpressionWrapper(
+                    F('total') - (F('cantidad') * F('costo')), 
+                    output_field=DecimalField()
+                )
+            )
+            .values('cod_articulo', 'detalle')
+            .annotate(
+                total_vendido=Sum('total'),
+                ganancia_neta=Sum('utilidad')
+            )
+            .order_by('-ganancia_neta')[:50]
+        )
+        return Response({"status": "success", "data": list(reporte)})
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=500)
+
+
+@api_view(['GET'])
+def InformeVentasPorRubro(request):
+    """Agrupación por rubro usando subconsultas y filtro de fechas."""
+    try:
+        ventas_filtradas = Ventas.objects.all()
+        ventas_filtradas = aplicar_rango_fechas(request, ventas_filtradas, 'fecha_fact')
+        movims_validos = ventas_filtradas.values_list('movim', flat=True)
+
+        queryset = VentasDet.objects.filter(movim__in=movims_validos)
+        
+        # Como cod_articulo es un CharField, usamos Subquery para buscar el rubro en la tabla Articulos
+        rubro_sq = Articulos.objects.filter(cod_art=OuterRef('cod_articulo')).values('rubro')[:1]
+        
+        reporte = (
+            queryset.annotate(rubro=Subquery(rubro_sq))
+            .values('rubro')
+            .annotate(total_rubro=Sum('total'))
+            .order_by('-total_rubro')
+        )
+        return Response({"status": "success", "data": list(reporte)})
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=500)
+    
+    
+@api_view(['GET'])
+def InformeReposicionCritica(request):
+    """
+    Artículos con stock bajo. 
+    Nota: No se aplica filtro de fecha aquí por ser un estado de inventario actual.
+    """
+    try:
+        criticos = (
+            Articulos.objects
+            .filter(stock__lte=F('stock_min'))
+            .values('cod_art', 'nombre', 'stock', 'stock_min', 'codigo_proveedor')
+            .order_by('stock')
+        )
+        return Response({"status": "success", "data": list(criticos)})
+    except Exception as e:
+        return Response({"status": "error", "mensaje": str(e)}, status=500)

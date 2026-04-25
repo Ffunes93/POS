@@ -1,6 +1,6 @@
 import hashlib
 import base64
-from datetime import datetime
+from datetime import datetime, time
 
 
 def encode_password_legacy(username: str, password: str) -> str:
@@ -24,3 +24,32 @@ def filtrar_por_fecha(queryset, campo_fecha: str, fecha_str: str):
         except ValueError:
             pass
     return queryset
+
+
+def aplicar_rango_fechas(request, queryset, campo_fecha):
+    """
+    Utility para aplicar filtros de fecha 'desde' y 'hasta' de forma uniforme.
+    Soporta formatos YYYY-MM-DD.
+    """
+    fecha_desde = request.query_params.get('desde')
+    fecha_hasta = request.query_params.get('hasta')
+
+    if fecha_desde:
+        try:
+            # Convertimos a inicio del día (00:00:00)
+            d = datetime.strptime(fecha_desde, '%Y-%m-%d')
+            queryset = queryset.filter(**{f"{campo_fecha}__gte": d})
+        except ValueError:
+            pass
+
+    if fecha_hasta:
+        try:
+            # Convertimos a fin del día (23:59:59) para incluir todo el día final
+            h = datetime.strptime(fecha_hasta, '%Y-%m-%d')
+            h_final = datetime.combine(h.date(), time.max)
+            queryset = queryset.filter(**{f"{campo_fecha}__lte": h_final})
+        except ValueError:
+            pass
+
+    return queryset
+
