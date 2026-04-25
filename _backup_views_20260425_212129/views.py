@@ -140,8 +140,8 @@ def IngresarComprobanteVentasJSON(request):
         with transaction.atomic():
             
             # 1. Movim Autoincremental
-            max_movim = Ventas.objects.aggregate(Max('movim'))['movim__max']
-            nuevo_movim = (max_movim or 0) + 1
+            ultima = Ventas.objects.select_for_update().aggregate(Max('movim'))
+            nuevo_movim = (ultima['movim__max'] or 0) + 1
             
             condicion_venta = data.get('Comprobante_CondVenta', '1')
             cliente_codigo = int(data['Cliente_Codigo'])
@@ -294,14 +294,25 @@ def IngresarComprobanteVentasJSON(request):
             # ... acá arriba termina el guardado de base de datos (CheqTarjCli, etc.) ...
 
         # =================================================================
-        # 6. GUARDAR RESPALDO DEL JSON EN DISCO (CON DATOS REALES DE LA BD)
+        # 6. GUARDAR RESPALDO DEL JSON EN DISCO (ESPEJO EXACTO DE LA BD)
         # =================================================================
         try:
             import os
             import json
             from django.core.serializers.json import DjangoJSONEncoder
             
-            # Armamos el nombre concatenado.
+            # 1. Recuperamos los registros exactos de la BD usando .values()
+            # Esto extrae TODAS las columnas definidas en el models.py automáticamente
+            cabecera_dict = list(Ventas.objects.filter(movim=nuevo_movim).values())[0]
+            detalles_lista = list(VentasDet.objects.filter(movim=nuevo_movim).values())
+            pagos_lista = list(CheqTarjCli.objects.filter(movim=nuevo_movim).values())
+            
+            # 2. Armamos el objeto maestro juntando las 3 tablas
+            json_a_guardar = cabecera_dict
+            json_a_guardar['VentasDet'] = detalles_lista
+            json_a_guardar['CheqTarjCli'] = pagos_lista
+            
+            # 3. Armamos el nombre concatenado
             tipo_arch = venta.cod_comprob
             letra_arch = venta.comprobante_letra
             pto_arch = str(venta.comprobante_pto_vta).zfill(4)
@@ -313,80 +324,19 @@ def IngresarComprobanteVentasJSON(request):
             os.makedirs(ruta_carpeta, exist_ok=True)
             ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
             
-            # 1. Armamos la cabecera reflejando exactamente la tabla "Ventas"
-            json_a_guardar = {
-                "movim": venta.movim,
-                "id_comprob": venta.id_comprob,
-                "cod_comprob": venta.cod_comprob,
-                "nro_comprob": venta.nro_comprob,
-                "cod_cli": venta.cod_cli,
-                "fecha_fact": venta.fecha_fact,
-                "fecha_vto": venta.fecha_vto,
-                "neto": venta.neto,
-                "iva_1": venta.iva_1,
-                "exento": venta.exento,
-                "total": venta.total,
-                "tot_general": venta.tot_general,
-                "descuento": venta.descuento,
-                "vendedor": venta.vendedor,
-                "moneda": venta.moneda,
-                "cajero": venta.cajero,
-                "nro_caja": venta.nro_caja,
-                "comprobante_tipo": venta.comprobante_tipo,
-                "comprobante_letra": venta.comprobante_letra,
-                "comprobante_pto_vta": venta.comprobante_pto_vta,
-                "cond_venta": venta.cond_venta,
-                "procesado": venta.procesado,
-                "fecha_mod": venta.fecha_mod,
-                "VentasDet": [],
-                "CheqTarjCli_Y_Caja": []
-            }
-            
-            # 2. Agregamos los detalles reflejando la tabla "VentasDet"
-            for item in data['Comprobante_Items']:
-                json_a_guardar["VentasDet"].append({
-                    "cod_articulo": item['Item_CodigoArticulo'],
-                    "cantidad": item['Item_CantidadUM1'],
-                    "precio_unit": item['Item_PrecioUnitario'],
-                    "precio_unit_base": item['Item_PrecioUnitario'],
-                    "total": item.get('Item_Importe', item['Item_ImporteTotal']),
-                    "descuento": item['Item_ImporteDescComercial'],
-                    "detalle": item.get('Item_DescripArticulo', ''),
-                    "p_iva": item.get('Item_TasaIVAInscrip', 0),
-                    "v_iva": item.get('Item_ImporteIVAInscrip', 0)
-                })
-
-            # 3. Agregamos los pagos reflejando "CheqTarjCli" y "CajasDet"
-            for mp in medios_pago:
-                codigo_pago = str(mp.get('MedioPago', 'EFE'))
-                importe_pago = mp.get('MedioPago_Importe', 0)
-                nro_cupon = mp.get('MedioPago_NroCupon') or mp.get('MedioPago_NumeroCheque')
-                if not nro_cupon:
-                    nro_cupon = 0
-                
-                json_a_guardar["CheqTarjCli_Y_Caja"].append({
-                    "origen": "VTA",
-                    "tipo": codigo_pago,
-                    "importe": importe_pago,
-                    "entidad": mp.get('MedioPago_CodigoBanco', ''),
-                    "numero": nro_cupon,
-                    "moneda": mp.get('MedioPago_Moneda', 1),
-                    "cuota": mp.get('MedioPago_CantidadCuotas', 1),
-                    "es_tarjeta_o_cheque": codigo_pago not in ['EFE', '1', 'CTA', '2']
-                })
-
-            # Escribimos el archivo físicamente
+            # 4. Escribimos el archivo físicamente
             with open(ruta_completa, 'w', encoding='utf-8') as archivo:
                 json.dump(json_a_guardar, archivo, indent=4, ensure_ascii=False, cls=DjangoJSONEncoder)
                 
         except Exception as error_archivo:
             print(f"⚠️ Venta exitosa, pero no se pudo guardar el archivo JSON: {error_archivo}")
+        # =================================================================
 
         return Response({
             "status": "success",
             "mensaje": "Comprobantes ingresados correctamente",
             "movim": nuevo_movim
-        }, status=status.HTTP_201_CREATED)        
+        }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
         return Response({
