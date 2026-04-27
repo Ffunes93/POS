@@ -1,36 +1,52 @@
 import { useState } from 'react';
-import GestionProveedores from './GestionProveedores';
+import GestionProveedores       from './GestionProveedores';
+import IngresoFacturaCompra     from './IngresoFacturaCompra';
+import HistorialCompras         from './HistorialCompras';
+import AnulacionCompraComprobantes from './AnulacionCompraComprobantes';
 
 export default function ModuloCompras() {
-  const [pestañaActual, setPestañaActual] = useState('PROVEEDORES');
+  const [sub, setSub] = useState('INGRESO');
 
-  const tabStyle = (activa) => ({
-    padding: '10px 20px',
-    cursor: 'pointer',
-    background: activa ? '#8e44ad' : '#ecf0f1',
-    color: activa ? 'white' : '#2c3e50',
-    border: 'none',
-    borderRadius: '5px 5px 0 0',
-    fontWeight: 'bold',
-    fontSize: '16px',
-    marginRight: '5px'
-  });
+  const menu = [
+    { id: 'INGRESO',   label: '📦 Ingresar Factura' },
+    { id: 'HISTORIAL', label: '📋 Historial de Compras' },
+    { id: 'ANULACION', label: '🚫 Anulación' },
+    { id: 'PROVEEDORES', label: '🏢 Proveedores' },
+  ];
 
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', borderBottom: '3px solid #8e44ad', marginBottom: '20px' }}>
-        <button style={tabStyle(pestañaActual === 'PROVEEDORES')} onClick={() => setPestañaActual('PROVEEDORES')}>
-          🏢 Catálogo de Proveedores
-        </button>
-        <button 
-          style={{ ...tabStyle(false), color: '#bdc3c7', cursor: 'not-allowed' }} 
-          title="Próximamente"
-        >
-          🧾 Carga de Facturas / Remitos (Pronto)
-        </button>
+    <div style={{ display: 'flex', minHeight: '80vh', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+
+      {/* Menú lateral */}
+      <div style={{ width: '220px', background: '#8e44ad', color: 'white', flexShrink: 0 }}>
+        <div style={{ padding: '18px 20px', background: '#6c3483', fontWeight: '700', fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,.15)' }}>
+          📦 Módulo Compras
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0' }}>
+          {menu.map(item => (
+            <button key={item.id} onClick={() => setSub(item.id)}
+              style={{
+                padding: '13px 20px', textAlign: 'left',
+                background: sub === item.id ? 'rgba(255,255,255,.18)' : 'transparent',
+                color: 'white', border: 'none',
+                borderLeft: sub === item.id ? '4px solid #f39c12' : '4px solid transparent',
+                cursor: 'pointer', fontSize: '13px',
+                fontWeight: sub === item.id ? '700' : '400',
+                transition: 'all .15s',
+              }}>
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {pestañaActual === 'PROVEEDORES' && <GestionProveedores />}
+      {/* Área de trabajo */}
+      <div style={{ flex: 1, padding: '20px', background: '#f9f9f9', overflowY: 'auto' }}>
+        {sub === 'INGRESO'     && <IngresoFacturaCompra />}
+        {sub === 'HISTORIAL'   && <HistorialCompras />}
+        {sub === 'ANULACION'   && <AnulacionCompraComprobantes />}
+        {sub === 'PROVEEDORES' && <GestionProveedores />}
+      </div>
     </div>
   );
 }

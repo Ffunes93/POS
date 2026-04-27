@@ -14,6 +14,10 @@ from maestros.views import (
     ActualizarCausa, InformeLibroIVAVentas, InformeRentabilidadArticulos, InformeHistorialCajas, GestionarParametros,
     BuscarComprobanteVenta, AnularComprobanteVenta, GestionarTipocompCli, UltimosComprobantesVenta
       # <--- ASEGURATE QUE ESTÉ ACÁ
+    SincronizarAsientos, ListarPlanCuentas, GuardarCuenta,
+    ListarAsientos, ObtenerAsiento, CrearAsientoManual, AnularAsientoManual,
+    InformeLibroDiario, InformeMayorCuenta,
+    InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
 )
 
 urlpatterns = [
@@ -88,4 +92,17 @@ urlpatterns = [
 
     # MÓDULO DE GESTION
     path('api/GestionarTipocompCli/', GestionarTipocompCli, name='GestionarTipocompCli'),
+    # ── MÓDULO DE CONTABILIDAD ────────────────────────────────────────────────
+    path('api/contab/Sincronizar/',         SincronizarAsientos,        name='SincronizarAsientos'),
+    path('api/contab/PlanCuentas/',         ListarPlanCuentas,          name='ListarPlanCuentas'),
+    path('api/contab/GuardarCuenta/',       GuardarCuenta,              name='GuardarCuenta'),
+    path('api/contab/Asientos/',            ListarAsientos,             name='ListarAsientos'),
+    path('api/contab/Asientos/<int:asiento_id>/', ObtenerAsiento,       name='ObtenerAsiento'),
+    path('api/contab/CrearAsiento/',        CrearAsientoManual,         name='CrearAsientoManual'),
+    path('api/contab/AnularAsiento/',       AnularAsientoManual,        name='AnularAsientoManual'),
+    path('api/contab/LibroDiario/',         InformeLibroDiario,         name='InformeLibroDiario'),
+    path('api/contab/MayorCuenta/',         InformeMayorCuenta,         name='InformeMayorCuenta'),
+    path('api/contab/BalanceSumasYSaldos/', InformeBalanceSumasYSaldos, name='InformeBalanceSumasYSaldos'),
+    path('api/contab/EstadoResultados/',    InformeEstadoResultados,    name='InformeEstadoResultados'),
+    path('api/contab/BalanceGeneral/',      InformeBalanceGeneral,      name='InformeBalanceGeneral'),
 ]

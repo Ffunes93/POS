@@ -1,94 +1,143 @@
 import { useState } from 'react';
-import Facturacion from './Facturacion';
-import AperturaCierreCaja from './AperturaCierreCaja'; // <-- Acá importamos la pantalla que creamos recién
-import LibroIVAVentas from './LibroIVAVentas';
-import RentabilidadArticulos from './RentabilidadArticulos';
-import AnulacionComprobantes from './AnulacionComprobantes';
+import Facturacion               from './Facturacion';
+import AperturaCierreCaja        from './AperturaCierreCaja';
+import LibroIVAVentas            from './LibroIVAVentas';
+import RentabilidadArticulos     from './RentabilidadArticulos';
+import AnulacionComprobantes     from './AnulacionComprobantes';
+import GestionRecibos            from './GestionRecibos';
 
+const API = 'http://localhost:8001/api';
+
+// ── Widget de retiro rápido ────────────────────────────────────────────────────
+function RetiroCajaWidget({ user, cajaId }) {
+  const [importe,  setImporte]  = useState('');
+  const [motivo,   setMotivo]   = useState('');
+  const [msg,      setMsg]      = useState(null);
+  const [cargando, setCargando] = useState(false);
+
+  const registrar = async (e) => {
+    e.preventDefault();
+    if (!cajaId) return setMsg({ tipo: 'error', texto: 'No hay caja abierta.' });
+    if (!importe || parseFloat(importe) <= 0) return setMsg({ tipo: 'error', texto: 'Ingrese un importe válido.' });
+    setCargando(true); setMsg(null);
+    const r = await fetch(`${API}/RegistrarRetiro/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cajero_id: user.id, importe: parseFloat(importe), motivo }),
+    });
+    const d = await r.json();
+    if (r.ok && d.status === 'success') {
+      setMsg({ tipo: 'ok', texto: `✅ ${d.mensaje}` });
+      setImporte(''); setMotivo('');
+    } else {
+      setMsg({ tipo: 'error', texto: d.mensaje || 'Error.' });
+    }
+    setCargando(false);
+  };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #d0d7de', borderRadius: '8px', padding: '24px', maxWidth: '480px', margin: '20px auto' }}>
+      <h3 style={{ marginTop: 0, color: '#24292f' }}>💸 Retiro de Caja</h3>
+      {!cajaId && (
+        <div style={{ background: '#fff8c5', border: '1px solid #f0c000', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#735c0f' }}>
+          ⚠️ No hay caja abierta. Abra una caja desde el módulo de Apertura/Cierre.
+        </div>
+      )}
+      {msg && (
+        <div style={{ padding: '10px 16px', borderRadius: '6px', marginBottom: '14px', fontSize: '13px', fontWeight: '600',
+          background: msg.tipo === 'ok' ? '#dafbe1' : '#ffebe9',
+          color:      msg.tipo === 'ok' ? '#116329' : '#a40e26',
+          border:     `1px solid ${msg.tipo === 'ok' ? '#56d364' : '#ff818266'}` }}>{msg.texto}</div>
+      )}
+      <form onSubmit={registrar} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#57606a', marginBottom: '4px', textTransform: 'uppercase' }}>
+            Importe a retirar ($)
+          </label>
+          <input autoFocus required type="number" step="0.01" value={importe}
+            onChange={e => setImporte(e.target.value)} placeholder="0.00"
+            style={{ width: '100%', padding: '10px', border: '2px solid #0969da', borderRadius: '5px', fontSize: '20px', textAlign: 'right', boxSizing: 'border-box' }} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#57606a', marginBottom: '4px', textTransform: 'uppercase' }}>
+            Motivo (opcional)
+          </label>
+          <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)}
+            placeholder="ej: Depósito banco, gastos operativos..."
+            style={{ width: '100%', padding: '9px 10px', border: '1px solid #d0d7de', borderRadius: '5px', fontSize: '14px', boxSizing: 'border-box' }} />
+        </div>
+        <button type="submit" disabled={cargando || !cajaId}
+          style={{ padding: '12px', background: cajaId ? '#e67e22' : '#ccc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: '700', cursor: cajaId ? 'pointer' : 'not-allowed' }}>
+          {cargando ? 'Registrando...' : '💸 Registrar Retiro'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ── Módulo ────────────────────────────────────────────────────────────────────
 export default function ModuloVentas({ user, cajaId, onAbrirCaja }) {
-  // Por defecto arranca en Facturación si hay caja, sino en Cajas
   const [submodulo, setSubmodulo] = useState(cajaId ? 'FACTURACION' : 'CAJAS');
 
   const menuItems = [
     { id: 'FACTURACION', label: '🧾 Facturación (Emisión)' },
-    { id: 'LOTES', label: '📦 Facturación Lotes' },
-    { id: 'ANULACION', label: '🚫 Anulación de comprobantes' },
-    { id: 'PRESUPUESTOS', label: '📝 Presupuestos' },
-    { id: 'CAJAS', label: '💵 Apertura y Cierre de Caja' },
-    { id: 'CONSULTA_COMP', label: '🔍 Consulta de Comprobantes' },
-    { id: 'CONSULTA_CAJAS', label: '🏦 Consulta de Cajas' },
-    { id: 'LIBRO_IVA', label: '📘 Libro IVA Ventas' },
-    { id: 'RENTABILIDAD', label: '📈 Consulta de Rentabilidad' },
-    { id: 'PRECIOS', label: '🏷️ Actualizador de Precios' },
+    { id: 'ANULACION',   label: '🚫 Anulación' },
+    { id: 'RECIBOS',     label: '🧾 Recibos de Cobro' },  // NUEVO
+    { id: 'CAJAS',       label: '💵 Apertura / Cierre Caja' },
+    { id: 'RETIRO',      label: '💸 Retiro de Caja' },     // NUEVO
+    { id: 'LIBRO_IVA',   label: '📘 Libro IVA Ventas' },
+    { id: 'RENTABILIDAD',label: '📈 Rentabilidad' },
   ];
 
   return (
     <div style={{ display: 'flex', minHeight: '80vh', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-      
-      {/* MENÚ LATERAL */}
-      <div style={{ width: '260px', background: '#2c3e50', color: 'white', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px', background: '#1a252f', fontWeight: 'bold', fontSize: '18px' }}>
+
+      {/* Menú lateral */}
+      <div style={{ width: '240px', background: '#2c3e50', color: 'white', flexShrink: 0 }}>
+        <div style={{ padding: '18px 20px', background: '#1a252f', fontWeight: '700', fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
           🛒 Módulo de Ventas
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 0' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0' }}>
           {menuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setSubmodulo(item.id)}
-              style={{
-                padding: '15px 20px', textAlign: 'left', background: submodulo === item.id ? '#34495e' : 'transparent',
-                color: submodulo === item.id ? '#2ecc71' : '#bdc3c7', border: 'none', borderLeft: submodulo === item.id ? '4px solid #2ecc71' : '4px solid transparent',
-                cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s', fontWeight: submodulo === item.id ? 'bold' : 'normal'
-              }}
-            >
-              {item.label}
-            </button>
+            <button key={item.id} onClick={() => setSubmodulo(item.id)} style={{
+              padding: '13px 20px', textAlign: 'left',
+              background: submodulo === item.id ? '#34495e' : 'transparent',
+              color: submodulo === item.id ? '#2ecc71' : '#bdc3c7',
+              border: 'none',
+              borderLeft: submodulo === item.id ? '4px solid #2ecc71' : '4px solid transparent',
+              cursor: 'pointer', fontSize: '13px',
+              fontWeight: submodulo === item.id ? '700' : '400',
+            }}>{item.label}</button>
           ))}
         </div>
       </div>
 
-      {/* ÁREA DE TRABAJO (DERECHA) */}
+      {/* Área de trabajo */}
       <div style={{ flex: 1, padding: '20px', background: '#f9f9f9', overflowY: 'auto' }}>
-        
-        {/* Lógica de bloqueo: Si quiere facturar pero no hay caja */}
+
         {submodulo === 'FACTURACION' && !cajaId && (
           <div style={{ background: '#f39c12', color: 'white', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>
             <h2>⚠️ Caja Cerrada</h2>
-            <p>Debe abrir su caja en el submódulo "Apertura y Cierre de Caja" antes de facturar.</p>
+            <p>Debe abrir su caja antes de facturar.</p>
             <button onClick={() => setSubmodulo('CAJAS')} style={{ padding: '10px 20px', background: '#e67e22', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Ir a Cajas</button>
           </div>
         )}
 
-        {/* RUTEO INTERNO */}
         {submodulo === 'FACTURACION' && cajaId && <Facturacion user={user} cajaId={cajaId} />}
-        
-        {/* Acá cargamos la pantalla de Apertura / Cierre */}
-        {submodulo === 'CAJAS' && (
-          <AperturaCierreCaja 
-            user={user} 
-            cajaId={cajaId} 
+        {submodulo === 'ANULACION'   && <AnulacionComprobantes />}
+        {submodulo === 'RECIBOS'     && <GestionRecibos />}
+        {submodulo === 'CAJAS'       && (
+          <AperturaCierreCaja
+            user={user}
+            cajaId={cajaId}
             onCajaCambiada={(nuevoId) => {
-              onAbrirCaja(nuevoId); // Actualiza el estado global en App.jsx
-              if (nuevoId) setSubmodulo('FACTURACION'); // Si abre caja, lo mandamos a facturar automáticamente
-            }} 
+              onAbrirCaja(nuevoId);
+              if (nuevoId) setSubmodulo('FACTURACION');
+            }}
           />
         )}
-
-        {/* 👇 ACÁ AGREGAMOS EL LIBRO IVA */}
-        {submodulo === 'LIBRO_IVA' && <LibroIVAVentas />}
-
-        {submodulo === 'RENTABILIDAD' && <RentabilidadArticulos />}
-
-        {submodulo === 'ANULACION' && <AnulacionComprobantes />}
-        
-        {/* Placeholders para el resto */}
-        {['LOTES', 'PRESUPUESTOS', 'CONSULTA_COMP', 'CONSULTA_CAJAS', 'RENTABILIDAD', 'PRECIOS'].includes(submodulo) && (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#7f8c8d' }}>
-            <h2>⚙️ Submódulo en construcción</h2>
-            <p>Esta sección se conectará próximamente con la base de datos.</p>
-          </div>
-        )}
-
+        {submodulo === 'RETIRO'      && <RetiroCajaWidget user={user} cajaId={cajaId} />}
+        {submodulo === 'LIBRO_IVA'   && <LibroIVAVentas />}
+        {submodulo === 'RENTABILIDAD'&& <RentabilidadArticulos />}
       </div>
     </div>
   );
