@@ -1,25 +1,29 @@
 import { useState } from 'react';
-import GestionProveedores       from './GestionProveedores';
-import IngresoFacturaCompra     from './IngresoFacturaCompra';
-import HistorialCompras         from './HistorialCompras';
+import GestionProveedores          from './GestionProveedores';
+import IngresoFacturaCompra        from './IngresoFacturaCompra';
+import HistorialCompras            from './HistorialCompras';
 import AnulacionCompraComprobantes from './AnulacionCompraComprobantes';
+import CtaCteProveedores           from './CtaCteProveedores';
 
 export default function ModuloCompras() {
   const [sub, setSub] = useState('INGRESO');
 
   const menu = [
-    { id: 'INGRESO',   label: '📦 Ingresar Factura' },
-    { id: 'HISTORIAL', label: '📋 Historial de Compras' },
-    { id: 'ANULACION', label: '🚫 Anulación' },
+    { id: 'INGRESO',     label: '📦 Ingresar Factura' },
+    { id: 'HISTORIAL',   label: '📋 Historial' },
+    { id: 'ANULACION',   label: '🚫 Anulación' },
+    { id: 'CTA_CTE',     label: '💸 CTA CTE Proveedores' },
     { id: 'PROVEEDORES', label: '🏢 Proveedores' },
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '80vh', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', minHeight: '80vh', background: 'white',
+      borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
 
       {/* Menú lateral */}
       <div style={{ width: '220px', background: '#8e44ad', color: 'white', flexShrink: 0 }}>
-        <div style={{ padding: '18px 20px', background: '#6c3483', fontWeight: '700', fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,.15)' }}>
+        <div style={{ padding: '18px 20px', background: '#6c3483', fontWeight: '700',
+          fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,.15)' }}>
           📦 Módulo Compras
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', padding: '8px 0' }}>
@@ -32,7 +36,6 @@ export default function ModuloCompras() {
                 borderLeft: sub === item.id ? '4px solid #f39c12' : '4px solid transparent',
                 cursor: 'pointer', fontSize: '13px',
                 fontWeight: sub === item.id ? '700' : '400',
-                transition: 'all .15s',
               }}>
               {item.label}
             </button>
@@ -45,6 +48,7 @@ export default function ModuloCompras() {
         {sub === 'INGRESO'     && <IngresoFacturaCompra />}
         {sub === 'HISTORIAL'   && <HistorialCompras />}
         {sub === 'ANULACION'   && <AnulacionCompraComprobantes />}
+        {sub === 'CTA_CTE'     && <CtaCteProveedores />}
         {sub === 'PROVEEDORES' && <GestionProveedores />}
       </div>
     </div>

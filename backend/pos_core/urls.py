@@ -1,30 +1,51 @@
 from django.contrib import admin
 from django.urls import path
 from maestros.views import (
+    # Sync
     GetArticulosJSON, GetClientesJSON, GetVendedoresJSON,
     GetPromocionesJSON, GetPromocionesDetJSON, GetKitsJSON,
     GetListasPreciosJSON, GetDescuentosJSON, GetCondIvaJSON,
-    GetFormaPagoJSON, GetRubrosJSON, GetSubRubrosJSON,
-    GetParametrosJSON, IngresarComprobanteVentasJSON,
-    AbrirCaja, CerrarCaja, LoginUsuario, CrearUsuario, ListarUsuarios, BajaUsuario, EditarUsuario,
+    GetFormaPagoJSON, GetRubrosJSON, GetSubRubrosJSON, GetParametrosJSON,
+    # Ventas
+    IngresarComprobanteVentasJSON,
+    BuscarComprobanteVenta, AnularComprobanteVenta, UltimosComprobantesVenta,
+    # Cotizaciones
+    ListarCotizaciones, ObtenerCotizacion,
+    GuardarCotizacion, AnularCotizacion, UtilizarCotizacion,
+    # Cajas
+    AbrirCaja, CerrarCaja, ObtenerEstadoCaja,
+    RegistrarRetiroCaja, ListarRetirosCaja,
+    # Auth
+    LoginUsuario, CrearUsuario, ListarUsuarios, BajaUsuario, EditarUsuario,
+    # Clientes
     ListarClientes, GuardarCliente,
+    # Stock
     ListarArticulosABM, GuardarArticulo,
-    ListarProveedores, GuardarProveedor,
-    ListarFormasPago, GuardarFormaPago,
-    InformeTotalesCondicion, InformeTotalesVendedor,
     ListarRubros, GuardarRubro, ListarSubRubros, GuardarSubRubro,
-    ObtenerEstadoCaja,
+    ListarCausasEmision, RegistrarEntradaStock, RegistrarSalidaStock,
+    InsertarNuevCausa, ActualizarCausa,
+    # Proveedores / Compras
+    ListarProveedores, GuardarProveedor,
     ListarCompras, IngresarComprobanteComprasJSON,
     BuscarComprobanteCompra, AnularComprobanteCompra,
+    # Formas de pago
+    ListarFormasPago, GuardarFormaPago,
+    # CTA CTE Clientes
     ResumenCtaCteCliente, InsertarReciboCtaCte,
     ObtenerDeudaCliente, EmitirRecibo, AnularRecibo,
-    ActualizarListaPrecio, InsertarNuevaPromo,
-    InsertarNuevCausa, ActualizarCausa,
-    ListarCausasEmision, RegistrarEntradaStock, RegistrarSalidaStock,
-    InformeLibroIVAVentas, InformeRentabilidadArticulos, InformeHistorialCajas,
-    InformeStockActual, InformeCtaCteClientes, InformeMovimientosStock, InformeEgresos,
+    # CTA CTE Proveedores
+    ResumenCtaCteProveedores, ObtenerDeudaProveedor,
+    RegistrarPagoProveedor, HistorialPagosProveedor,
+    # Informes
+    InformeTotalesCondicion, InformeTotalesVendedor,
+    InformeLibroIVAVentas, InformeRentabilidadArticulos,
+    InformeHistorialCajas, InformeStockActual,
+    InformeCtaCteClientes, InformeMovimientosStock, InformeEgresos,
+    # Parámetros
     GestionarParametros, GestionarTipocompCli,
-    BuscarComprobanteVenta, AnularComprobanteVenta, UltimosComprobantesVenta,
+    ActualizarListaPrecio, InsertarNuevaPromo,
+    # Dashboard
+    ObtenerDashboard,
     # Contabilidad
     SincronizarAsientos, ListarPlanCuentas, GuardarCuenta,
     ListarAsientos, ObtenerAsiento, CrearAsientoManual, AnularAsientoManual,
@@ -50,23 +71,35 @@ urlpatterns = [
     path('api/getSubRubrosJSON/',      GetSubRubrosJSON.as_view()),
     path('api/getParametrosJSON/',     GetParametrosJSON.as_view()),
 
+    # ── Dashboard ─────────────────────────────────────────────────────────────
+    path('api/Dashboard/', ObtenerDashboard, name='Dashboard'),
+
     # ── Ventas ────────────────────────────────────────────────────────────────
-    path('api/IngresarComprobanteVentasJSON/', IngresarComprobanteVentasJSON, name='IngresarComprobanteVentasJSON'),
-    path('api/BuscarComprobanteVenta/',        BuscarComprobanteVenta,        name='BuscarComprobanteVenta'),
-    path('api/AnularComprobanteVenta/',        AnularComprobanteVenta,        name='AnularComprobanteVenta'),
-    path('api/UltimosComprobantesVenta/',      UltimosComprobantesVenta,      name='UltimosComprobantesVenta'),
+    path('api/IngresarComprobanteVentasJSON/', IngresarComprobanteVentasJSON),
+    path('api/BuscarComprobanteVenta/',        BuscarComprobanteVenta),
+    path('api/AnularComprobanteVenta/',        AnularComprobanteVenta),
+    path('api/UltimosComprobantesVenta/',      UltimosComprobantesVenta),
+
+    # ── Cotizaciones / Presupuestos ───────────────────────────────────────────
+    path('api/ListarCotizaciones/',   ListarCotizaciones,   name='ListarCotizaciones'),
+    path('api/ObtenerCotizacion/<int:movim>/', ObtenerCotizacion, name='ObtenerCotizacion'),
+    path('api/GuardarCotizacion/',    GuardarCotizacion,    name='GuardarCotizacion'),
+    path('api/AnularCotizacion/',     AnularCotizacion,     name='AnularCotizacion'),
+    path('api/UtilizarCotizacion/',   UtilizarCotizacion,   name='UtilizarCotizacion'),
 
     # ── Cajas ─────────────────────────────────────────────────────────────────
-    path('api/AbrirCaja/',    AbrirCaja,          name='AbrirCaja'),
-    path('api/CerrarCaja/',   CerrarCaja,         name='CerrarCaja'),
-    path('api/EstadoCaja/',   ObtenerEstadoCaja,  name='EstadoCaja'),
+    path('api/AbrirCaja/',           AbrirCaja,           name='AbrirCaja'),
+    path('api/CerrarCaja/',          CerrarCaja,          name='CerrarCaja'),
+    path('api/EstadoCaja/',          ObtenerEstadoCaja,   name='EstadoCaja'),
+    path('api/RegistrarRetiroCaja/', RegistrarRetiroCaja, name='RegistrarRetiroCaja'),
+    path('api/ListarRetirosCaja/',   ListarRetirosCaja,   name='ListarRetirosCaja'),
 
     # ── Auth / Usuarios ───────────────────────────────────────────────────────
-    path('api/Login/',         LoginUsuario,  name='Login'),
-    path('api/CrearUsuario/',  CrearUsuario,  name='CrearUsuario'),
-    path('api/ListarUsuarios/',ListarUsuarios,name='ListarUsuarios'),
-    path('api/BajaUsuario/',   BajaUsuario,   name='BajaUsuario'),
-    path('api/EditarUsuario/', EditarUsuario, name='EditarUsuario'),
+    path('api/Login/',          LoginUsuario,   name='Login'),
+    path('api/CrearUsuario/',   CrearUsuario,   name='CrearUsuario'),
+    path('api/ListarUsuarios/', ListarUsuarios, name='ListarUsuarios'),
+    path('api/BajaUsuario/',    BajaUsuario,    name='BajaUsuario'),
+    path('api/EditarUsuario/',  EditarUsuario,  name='EditarUsuario'),
 
     # ── Clientes ──────────────────────────────────────────────────────────────
     path('api/ListarClientes/', ListarClientes, name='ListarClientes'),
@@ -87,43 +120,47 @@ urlpatterns = [
     path('api/InsertarNuevCausa/',     InsertarNuevCausa,     name='InsertarNuevCausa'),
     path('api/ActualizarCausa/',       ActualizarCausa,       name='ActualizarCausa'),
 
-    # ── Proveedores / Formas de Pago ──────────────────────────────────────────
+    # ── Proveedores / Formas de pago ──────────────────────────────────────────
     path('api/ListarProveedores/', ListarProveedores, name='ListarProveedores'),
     path('api/GuardarProveedor/',  GuardarProveedor,  name='GuardarProveedor'),
     path('api/ListarFormasPago/',  ListarFormasPago,  name='ListarFormasPago'),
     path('api/GuardarFormaPago/',  GuardarFormaPago,  name='GuardarFormaPago'),
 
     # ── Compras ───────────────────────────────────────────────────────────────
-    path('api/ListarCompras/',                ListarCompras,                name='ListarCompras'),
+    path('api/ListarCompras/',                  ListarCompras,                name='ListarCompras'),
     path('api/IngresarComprobanteComprasJSON/', IngresarComprobanteComprasJSON, name='IngresarComprobanteComprasJSON'),
-    path('api/BuscarComprobanteCompra/',      BuscarComprobanteCompra,      name='BuscarComprobanteCompra'),
-    path('api/AnularComprobanteCompra/',      AnularComprobanteCompra,      name='AnularComprobanteCompra'),
+    path('api/BuscarComprobanteCompra/',        BuscarComprobanteCompra,      name='BuscarComprobanteCompra'),
+    path('api/AnularComprobanteCompra/',        AnularComprobanteCompra,      name='AnularComprobanteCompra'),
 
-    # ── Cta. Cte. ─────────────────────────────────────────────────────────────
+    # ── CTA CTE Clientes ──────────────────────────────────────────────────────
     path('api/ResumenCtaCteCliente/', ResumenCtaCteCliente, name='ResumenCtaCteCliente'),
     path('api/InsertarReciboCtaCte/', InsertarReciboCtaCte, name='InsertarReciboCtaCte'),
     path('api/ObtenerDeudaCliente/',  ObtenerDeudaCliente,  name='ObtenerDeudaCliente'),
     path('api/EmitirRecibo/',         EmitirRecibo,         name='EmitirRecibo'),
     path('api/AnularRecibo/',         AnularRecibo,         name='AnularRecibo'),
 
-    # ── Listas de Precios / Promos ────────────────────────────────────────────
-    path('api/ActualizarListaPrecio/', ActualizarListaPrecio, name='ActualizarListaPrecio'),
-    path('api/InsertarNuevaPromo/',    InsertarNuevaPromo,    name='InsertarNuevaPromo'),
+    # ── CTA CTE Proveedores ───────────────────────────────────────────────────
+    path('api/ResumenCtaCteProveedores/', ResumenCtaCteProveedores, name='ResumenCtaCteProveedores'),
+    path('api/ObtenerDeudaProveedor/',   ObtenerDeudaProveedor,   name='ObtenerDeudaProveedor'),
+    path('api/RegistrarPagoProveedor/',  RegistrarPagoProveedor,  name='RegistrarPagoProveedor'),
+    path('api/HistorialPagosProveedor/', HistorialPagosProveedor, name='HistorialPagosProveedor'),
 
     # ── Informes ──────────────────────────────────────────────────────────────
-    path('api/InformeTotalesCondicion/',      InformeTotalesCondicion,      name='InformeTotalesCondicion'),
-    path('api/InformeTotalesVendedor/',       InformeTotalesVendedor,       name='InformeTotalesVendedor'),
-    path('api/InformeLibroIVAVentas/',        InformeLibroIVAVentas,        name='InformeLibroIVAVentas'),
-    path('api/InformeRentabilidadArticulos/', InformeRentabilidadArticulos, name='InformeRentabilidadArticulos'),
-    path('api/InformeHistorialCajas/',        InformeHistorialCajas,        name='InformeHistorialCajas'),
-    path('api/InformeStockActual/',           InformeStockActual,           name='InformeStockActual'),
-    path('api/InformeCtaCteClientes/',        InformeCtaCteClientes,        name='InformeCtaCteClientes'),
-    path('api/InformeMovimientosStock/',      InformeMovimientosStock,      name='InformeMovimientosStock'),
-    path('api/InformeEgresos/',               InformeEgresos,               name='InformeEgresos'),
+    path('api/InformeTotalesCondicion/',      InformeTotalesCondicion),
+    path('api/InformeTotalesVendedor/',       InformeTotalesVendedor),
+    path('api/InformeLibroIVAVentas/',        InformeLibroIVAVentas),
+    path('api/InformeRentabilidadArticulos/', InformeRentabilidadArticulos),
+    path('api/InformeHistorialCajas/',        InformeHistorialCajas),
+    path('api/InformeStockActual/',           InformeStockActual),
+    path('api/InformeCtaCteClientes/',        InformeCtaCteClientes),
+    path('api/InformeMovimientosStock/',      InformeMovimientosStock),
+    path('api/InformeEgresos/',               InformeEgresos),
 
     # ── Parámetros / Gestión ──────────────────────────────────────────────────
     path('api/GestionarParametros/',  GestionarParametros,  name='GestionarParametros'),
     path('api/GestionarTipocompCli/', GestionarTipocompCli, name='GestionarTipocompCli'),
+    path('api/ActualizarListaPrecio/', ActualizarListaPrecio, name='ActualizarListaPrecio'),
+    path('api/InsertarNuevaPromo/',    InsertarNuevaPromo,    name='InsertarNuevaPromo'),
 
     # ── Contabilidad ──────────────────────────────────────────────────────────
     path('api/contab/Sincronizar/',          SincronizarAsientos,        name='SincronizarAsientos'),
