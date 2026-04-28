@@ -1604,3 +1604,5 @@ class Zetas(models.Model):
         managed = False
         db_table = 'zetas'
 from .contabilidad_models import *
+
+from .restaurant_models import *

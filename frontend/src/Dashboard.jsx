@@ -273,7 +273,7 @@ export default function Dashboard({ onNavegar }) {
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {[
-            { label: '🛒 Nueva Venta',     vista: 'VENTAS' },
+            { label: '🛒 VENTAS',     vista: 'VENTAS' },
             { label: '📦 Ingreso Compra',  vista: 'COMPRAS' },
             { label: '💳 Cobrar CTA CTE',  vista: 'VENTAS' },
             { label: '📋 Cotizaciones',    vista: 'COTIZACIONES' },

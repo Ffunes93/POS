@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import GestionArticulos from './GestionArticulos';
-import GestionRubros    from './GestionRubros';
-import MovimientosStock from './MovimientosStock';
+import GestionArticulos  from './GestionArticulos';
+import GestionRubros     from './GestionRubros';
+import MovimientosStock  from './MovimientosStock';
+import ModuloKitsPromos  from './ModuloKitsPromos';
 
 export default function ModuloStock() {
   const [submodulo, setSubmodulo] = useState('ARTICULOS');
@@ -9,9 +10,9 @@ export default function ModuloStock() {
   const menuItems = [
     { id: 'ARTICULOS',   label: '📦 ABM de Artículos' },
     { id: 'RUBROS',      label: '🗂️ Rubros y Subrubros' },
-    { id: 'MOVIMIENTOS', label: '🔄 Movimientos de Stock' },  // NUEVO
+    { id: 'MOVIMIENTOS', label: '🔄 Movimientos de Stock' },
+    { id: 'KITS_PROMOS', label: '🧩 Kits y Promociones' },
     { id: 'LISTAS_PRECIOS', label: '📋 Listas de Precios' },
-    { id: 'PROMOCIONES',    label: '⭐ Promociones' },
   ];
 
   return (
@@ -41,11 +42,11 @@ export default function ModuloStock() {
         {submodulo === 'ARTICULOS'   && <GestionArticulos />}
         {submodulo === 'RUBROS'      && <GestionRubros />}
         {submodulo === 'MOVIMIENTOS' && <MovimientosStock />}
-        {['LISTAS_PRECIOS', 'PROMOCIONES'].includes(submodulo) && (
+        {submodulo === 'KITS_PROMOS' && <ModuloKitsPromos />}
+        {submodulo === 'LISTAS_PRECIOS' && (
           <div style={{ padding: '60px', textAlign: 'center', color: '#7f8c8d' }}>
             <h2 style={{ fontSize: '40px', margin: '0 0 10px 0' }}>🚧</h2>
-            <h3>Submódulo en construcción</h3>
-            <p>{menuItems.find(m => m.id === submodulo)?.label}</p>
+            <h3>Listas de Precios — en construcción</h3>
           </div>
         )}
       </div>

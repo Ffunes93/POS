@@ -1,24 +1,5 @@
 """
-maestros/views/__init__.py
-
-Este archivo solo re-exporta las vistas desde los módulos separados.
-NO debe contener implementaciones directas — usar los archivos específicos.
-
-Módulos disponibles:
-  - auth.py          → Login, usuarios
-  - cajas.py         → Apertura, cierre, retiros
-  - clientes.py      → ABM clientes
-  - compras.py       → Compras, proveedores
-  - configuracion.py → Parámetros, tipocomp, formas de pago
-  - contabilidad.py  → Módulo contable completo
-  - cotizaciones.py  → Presupuestos / cotizaciones
-  - cta_cte.py       → CTA CTE clientes, recibos
-  - cta_cte_prov.py  → CTA CTE proveedores, pagos
-  - dashboard.py     → KPIs del panel de control
-  - informes.py      → Todos los informes
-  - stock.py         → ABM artículos, rubros, movimientos
-  - ventas.py        → Facturación, anulaciones
-  - sync.py          → Endpoints de sincronización de catálogos
+maestros/views/__init__.py  — re-exporta todas las vistas.
 """
 
 # ── Sync / catálogos ──────────────────────────────────────────────────────────
@@ -82,6 +63,19 @@ from .stock import (  # noqa
     ListarRubros, GuardarRubro, ListarSubRubros, GuardarSubRubro,
     InsertarNuevCausa, ActualizarCausa, ListarCausasEmision,
     RegistrarEntradaStock, RegistrarSalidaStock,
+)
+
+# ── Kits / Combos BOM ─────────────────────────────────────────────────────────
+from .kits_promos import (  # noqa
+    ListarKits, GuardarKit, EliminarKit,
+    ListarPromociones, GuardarPromocion, TogglePromocion,
+    AgregarArticuloPromo, EliminarArticuloPromo,
+)
+
+# ── Factura Electrónica AFIP ──────────────────────────────────────────────────
+from .factura_electronica import (  # noqa
+    EstadoFE, SolicitarCAEManual, ListarSinCAE,
+    ProbarConexionAFIP, GuardarConfigFE,
 )
 
 # ── Configuración ─────────────────────────────────────────────────────────────

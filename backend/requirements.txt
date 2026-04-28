@@ -2,3 +2,8 @@ Django>=4.2,<5.0
 djangorestframework>=3.14
 mysqlclient>=2.2.0
 django-cors-headers
+# Factura Electrónica AFIP
+zeep>=4.2.1
+cryptography>=42.0.0
+requests>=2.31.0
+lxml>=5.0.0
