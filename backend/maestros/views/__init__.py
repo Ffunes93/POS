@@ -1,5 +1,24 @@
 """
-maestros/views/__init__.py  — re-exporta todas las vistas.
+maestros/views/__init__.py
+
+Re-exporta todas las vistas desde los módulos separados.
+NO contiene implementaciones directas.
+
+Módulos disponibles:
+  - auth.py          → Login, usuarios
+  - cajas.py         → Apertura, cierre, retiros
+  - clientes.py      → ABM clientes
+  - compras.py       → Compras, proveedores
+  - configuracion.py → Parámetros, tipocomp, formas de pago
+  - contabilidad.py  → Módulo contable completo (extendido)
+  - cotizaciones.py  → Presupuestos / cotizaciones
+  - cta_cte.py       → CTA CTE clientes, recibos
+  - cta_cte_prov.py  → CTA CTE proveedores, pagos
+  - dashboard.py     → KPIs del panel de control
+  - informes.py      → Todos los informes
+  - stock.py         → ABM artículos, rubros, movimientos
+  - ventas.py        → Facturación, anulaciones
+  - sync.py          → Endpoints de sincronización de catálogos
 """
 
 # ── Sync / catálogos ──────────────────────────────────────────────────────────
@@ -65,19 +84,6 @@ from .stock import (  # noqa
     RegistrarEntradaStock, RegistrarSalidaStock,
 )
 
-# ── Kits / Combos BOM ─────────────────────────────────────────────────────────
-from .kits_promos import (  # noqa
-    ListarKits, GuardarKit, EliminarKit,
-    ListarPromociones, GuardarPromocion, TogglePromocion,
-    AgregarArticuloPromo, EliminarArticuloPromo,
-)
-
-# ── Factura Electrónica AFIP ──────────────────────────────────────────────────
-from .factura_electronica import (  # noqa
-    EstadoFE, SolicitarCAEManual, ListarSinCAE,
-    ProbarConexionAFIP, GuardarConfigFE,
-)
-
 # ── Configuración ─────────────────────────────────────────────────────────────
 from .configuracion import (  # noqa
     GestionarParametros, GestionarTipocompCli,
@@ -96,10 +102,26 @@ from .informes import (  # noqa
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 from .dashboard import ObtenerDashboard  # noqa
 
-# ── Contabilidad ──────────────────────────────────────────────────────────────
+# ── Contabilidad (versión extendida) ──────────────────────────────────────────
 from .contabilidad import (  # noqa
-    SincronizarAsientos, ListarPlanCuentas, GuardarCuenta,
+    # Sincronización
+    SincronizarAsientos,
+    # Plan de Cuentas
+    ListarPlanCuentas, GuardarCuenta,
+    # CRUD Asientos
     ListarAsientos, ObtenerAsiento, CrearAsientoManual, AnularAsientoManual,
+    # Mayorización y anulación por ID
+    MayorizarAsiento, AnularAsientoId,
+    # Asientos automáticos e importación
+    GenerarAsientoAutomatico, ImportarAsientos,
+    # Consulta de saldos
+    ConsultaSaldos,
+    # Configuración contable (NUEVO)
+    GestionTiposAsiento, DetalleTipoAsiento,
+    GestionSeries, DetalleSerie,
+    GestionEjercicios, DetalleEjercicio,
+    GestionModelos, DetalleModelo,
+    # Informes
     InformeLibroDiario, InformeMayorCuenta,
     InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
 )
