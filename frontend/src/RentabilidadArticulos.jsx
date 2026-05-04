@@ -17,7 +17,7 @@ export default function RentabilidadArticulos() {
     
     try {
       // 👇 ACÁ ESTÁ LA URL CORRECTA QUE DEFINIMOS EN DJANGO
-      const res = await fetch(`http://localhost:8001/api/InformeRentabilidadArticulos/?desde=${desde}&hasta=${hasta}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/InformeRentabilidadArticulos/?desde=${desde}&hasta=${hasta}`);
       const data = await res.json();
       
       if (data.status === 'success') {

@@ -11,7 +11,7 @@ export default function GestionProveedores() {
   const fetchProveedores = async (filtro = '') => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8001/api/ListarProveedores/?buscar=${filtro}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarProveedores/?buscar=${filtro}`);
       const data = await res.json();
       if (data.status === 'success') setProveedores(data.data);
     } catch (error) {
@@ -42,7 +42,7 @@ export default function GestionProveedores() {
   const guardarProveedor = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarProveedor/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarProveedor/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

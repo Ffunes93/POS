@@ -17,7 +17,7 @@ export default function GestionTipocomp() {
 
   const cargarComprobantes = async () => {
     try {
-      const res = await fetch('http://localhost:8001/api/GestionarTipocompCli/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GestionarTipocompCli/`);
       const data = await res.json();
       if (data.status === 'success') {
         setComprobantes(data.data);
@@ -39,7 +39,7 @@ export default function GestionTipocomp() {
     const payload = { ...formData, ultdia: formData.ultdia + 'T00:00:00Z' };
 
     try {
-      const url = 'http://localhost:8001/api/GestionarTipocompCli/';
+      const url = `${import.meta.env.VITE_API_URL}/api/GestionarTipocompCli/`;
       const method = modoEdicion ? 'PUT' : 'POST';
       
       const res = await fetch(url, {

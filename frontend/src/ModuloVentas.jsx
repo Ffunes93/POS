@@ -7,7 +7,7 @@ import AnulacionComprobantes from './AnulacionComprobantes';
 import GestionRecibos        from './GestionRecibos';
 import ModuloCotizaciones    from './ModuloCotizaciones';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 // ── Widget de retiro rápido ────────────────────────────────────────────────────
 function RetiroCajaWidget({ user, cajaId }) {

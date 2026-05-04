@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 export default function HistorialCompras() {
   const hoy        = new Date().toISOString().split('T')[0];

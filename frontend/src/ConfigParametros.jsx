@@ -36,7 +36,7 @@ export default function ConfigParametros() {
   const cargarParametros = async () => {
     setCargando(true);
     try {
-      const res = await fetch('http://localhost:8001/api/GestionarParametros/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GestionarParametros/`);
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'success' && data.data) {
@@ -58,7 +58,7 @@ export default function ConfigParametros() {
     e.preventDefault();
     setCargando(true);
     try {
-      const res = await fetch('http://localhost:8001/api/GestionarParametros/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GestionarParametros/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)

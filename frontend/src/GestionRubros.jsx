@@ -18,7 +18,7 @@ export default function GestionRubros() {
 
   const fetchRubros = async () => {
     try {
-      const res = await fetch('http://localhost:8001/api/ListarRubros/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarRubros/`);
       const data = await res.json();
       if (data.status === 'success') setRubros(data.data);
     } catch (e) { alert("Error cargando rubros"); }
@@ -26,7 +26,7 @@ export default function GestionRubros() {
 
   const fetchSubrubros = async () => {
     try {
-      const res = await fetch('http://localhost:8001/api/ListarSubRubros/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarSubRubros/`);
       const data = await res.json();
       if (data.status === 'success') setSubrubros(data.data);
     } catch (e) { alert("Error cargando subrubros"); }
@@ -35,7 +35,7 @@ export default function GestionRubros() {
   const guardarRubro = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarRubro/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarRubro/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)
       });
       const data = await res.json();
@@ -51,7 +51,7 @@ export default function GestionRubros() {
   const guardarSubrubro = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarSubRubro/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarSubRubro/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)
       });
       const data = await res.json();

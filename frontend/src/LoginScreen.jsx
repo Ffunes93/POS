@@ -8,7 +8,7 @@ export default function LoginScreen({ onLogin }) {
     e.preventDefault()
     setError('')
     try {
-      const res = await fetch('http://localhost:8001/api/Login/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/Login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)

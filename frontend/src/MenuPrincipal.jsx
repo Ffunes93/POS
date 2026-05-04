@@ -30,6 +30,7 @@ export default function MenuPrincipal({ onNavegar }) {
     { vista: 'CONTABILIDAD', bg: '#2c3e50', icono: '🏛', label: 'Contabilidad' },
     { vista: 'FE',           bg: '#6c3483', icono: '🧾', label: 'Fact. Electrónica' },
     { vista: 'RESTAURANTE',  bg: '#16a085', icono: '🍽', label: 'Restaurante' },
+    { vista: 'IMPOSITIVO',   bg: '#0f766e', icono: '🏛', label: 'Informes Impositivos' },
   ];
 
   return (

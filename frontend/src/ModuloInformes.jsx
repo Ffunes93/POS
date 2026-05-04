@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 const exportarExcel = (rows, nombre) => {
   const ws = XLSX.utils.json_to_sheet(rows);

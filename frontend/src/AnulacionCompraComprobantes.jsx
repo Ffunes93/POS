@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 export default function AnulacionCompraComprobantes() {
   const [busqueda, setBusqueda]       = useState({ tipo: 'F', letra: 'A', pto: '1', nro: '' });

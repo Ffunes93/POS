@@ -14,6 +14,8 @@ import ModuloCotizaciones from './ModuloCotizaciones'
 import ModuloKitsPromos   from './ModuloKitsPromos'
 import ModuloRestaurante from './ModuloRestaurante'
 import FacturacionElectronica from './FacturacionElectronica'
+import ModuloImpositivo from './ModuloImpositivo'
+
 
 // Mapa de etiquetas para la barra de título
 const VISTA_LABELS = {
@@ -29,6 +31,7 @@ const VISTA_LABELS = {
   KITS_PROMOS:  '🧩 Kits y Promos',
   FE:           '🏛 Fact. Electrónica',
   RESTAURANTE:  '🍽 Restaurante',
+  IMPOSITIVO:   '🏛 Informes Impositivos',
 }
 
 export default function App() {
@@ -165,6 +168,7 @@ export default function App() {
           )}
           {vistaActual === 'CONTABILIDAD' && <ModuloContabilidad />}
           {vistaActual === 'RESTAURANTE' && <ModuloRestaurante user={user} cajaId={cajaId} />}
+          {vistaActual === 'IMPOSITIVO' && <ModuloImpositivo />}
           {vistaActual === 'KITS_PROMOS'  && (
             <div style={{ padding: '20px' }}>
               <ModuloKitsPromos />

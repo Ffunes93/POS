@@ -17,7 +17,7 @@ export default function LibroIVAVentas() {
     setCargando(true);
     
     try {
-      const res = await fetch(`http://localhost:8001/api/InformeLibroIVAVentas/?desde=${desde}&hasta=${hasta}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/InformeLibroIVAVentas/?desde=${desde}&hasta=${hasta}`);
       const data = await res.json();
       
       if (data.status === 'success') {

@@ -12,7 +12,7 @@ export default function GestionArticulos() {
   const fetchArticulos = async (filtro = '') => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8001/api/ListarArticulosABM/?buscar=${filtro}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarArticulosABM/?buscar=${filtro}`);
       const data = await res.json();
       if (data.status === 'success') setArticulos(data.data);
     } catch (error) {
@@ -44,7 +44,7 @@ export default function GestionArticulos() {
   const guardarArticulo = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarArticulo/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarArticulo/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

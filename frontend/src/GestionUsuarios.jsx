@@ -27,7 +27,7 @@ export default function GestionUsuarios() {
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8001/api/ListarUsuarios/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarUsuarios/`);
       const data = await res.json();
       if (data.status === 'success') {
         setUsuarios(data.data);
@@ -50,7 +50,7 @@ export default function GestionUsuarios() {
     if (!window.confirm(`¿Seguro que desea ${accion} este usuario?`)) return;
 
     try {
-      const res = await fetch('http://localhost:8001/api/BajaUsuario/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/BajaUsuario/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: id, no_activo: nuevoEstado })
@@ -103,7 +103,7 @@ export default function GestionUsuarios() {
     e.preventDefault();
     
     // Determinamos si llamamos a Crear o a Editar (que crearemos en Django)
-    const url = modoEdicion ? 'http://localhost:8001/api/EditarUsuario/' : 'http://localhost:8001/api/CrearUsuario/';
+    const url = modoEdicion ? `${import.meta.env.VITE_API_URL}/api/EditarUsuario/` : `${import.meta.env.VITE_API_URL}/api/CrearUsuario/`;
 
     try {
       const res = await fetch(url, {

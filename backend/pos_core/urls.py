@@ -63,6 +63,31 @@ from maestros.views import (
     # Contabilidad — Informes
     InformeLibroDiario, InformeMayorCuenta,
     InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
+    # Informes Impositivos
+    LibrosIVA, EliminarLibroIVA, DatosLibroIVA,
+    GenerarIVADigital, DeclaracionesJuradas, RectificarDDJJ, MarcarPasadoCG,
+    AnalisisOperaciones, ListarExportaciones, DescargarExportacion,
+    GenerarSICORE, GenerarSIFERE, GenerarExportacionGenerica,
+    VentasPorPuntoDeVenta, RankingClientes, RankingProveedores,
+    PuntosRegistracion, RegimenesEspeciales,)
+from maestros.views.kits_promos import (
+    # Kits / Combos BOM
+    ListarKits, GuardarKit, EliminarKit,
+    # Promociones
+    ListarPromociones, GuardarPromocion, TogglePromocion,
+    AgregarArticuloPromo, EliminarArticuloPromo,)
+from maestros.views.factura_electronica import (
+    # Factura Electrónica AFIP
+    EstadoFE, SolicitarCAEManual, ListarSinCAE,
+    ProbarConexionAFIP, GuardarConfigFE,)
+    # Restaurante
+from maestros.views.restaurante import (
+    GestionSectores, ObtenerPlano, ActualizarMesa, CrearMesa,
+    AbrirMesa, ObtenerPedido,
+    AgregarItem, QuitarItem, EnviarCocina,
+    PedirCuenta, FacturarMesa, CancelarPedido,
+    VistaComanda, MarcarListoItem, MarcarListoPedido,
+    HistorialPedidos, ObtenerCartaMenu,
 )
 
 urlpatterns = [
@@ -132,6 +157,18 @@ urlpatterns = [
     path('api/InsertarNuevCausa/',     InsertarNuevCausa,     name='InsertarNuevCausa'),
     path('api/ActualizarCausa/',       ActualizarCausa,       name='ActualizarCausa'),
 
+    # ── Kits / Combos BOM ─────────────────────────────────────────────────────
+    path('api/ListarKits/',          ListarKits),
+    path('api/GuardarKit/',          GuardarKit),
+    path('api/EliminarKit/',         EliminarKit),
+
+    # ── Promociones ───────────────────────────────────────────────────────────
+    path('api/ListarPromociones/',       ListarPromociones,),
+    path('api/GuardarPromocion/',        GuardarPromocion),
+    path('api/TogglePromocion/',         TogglePromocion),
+    path('api/AgregarArticuloPromo/',    AgregarArticuloPromo),
+    path('api/EliminarArticuloPromo/',   EliminarArticuloPromo),
+
     # ── Proveedores / Formas de pago ──────────────────────────────────────────
     path('api/ListarProveedores/', ListarProveedores, name='ListarProveedores'),
     path('api/GuardarProveedor/',  GuardarProveedor,  name='GuardarProveedor'),
@@ -174,6 +211,32 @@ urlpatterns = [
     path('api/ActualizarListaPrecio/', ActualizarListaPrecio, name='ActualizarListaPrecio'),
     path('api/InsertarNuevaPromo/',    InsertarNuevaPromo,    name='InsertarNuevaPromo'),
 
+    # ── Factura Electrónica AFIP ──────────────────────────────────────────────
+    path('api/fe/Estado/',          EstadoFE),
+    path('api/fe/ProbarConexion/',  ProbarConexionAFIP),
+    path('api/fe/SolicitarCAE/',    SolicitarCAEManual),
+    path('api/fe/ListarSinCAE/',    ListarSinCAE),
+    path('api/fe/GuardarConfig/',   GuardarConfigFE),
+
+     # ── Restaurante / Gastronomía ─────────────────────────────────────────────
+    path('api/rest/sectores/',               GestionSectores),
+    path('api/rest/plano/',                  ObtenerPlano),
+    path('api/rest/mesa/<int:mesa_id>/',     ActualizarMesa),
+    path('api/rest/mesa/crear/',             CrearMesa),
+    path('api/rest/abrir_mesa/',             AbrirMesa),
+    path('api/rest/pedido/<int:pedido_id>/', ObtenerPedido),
+    path('api/rest/agregar_item/',           AgregarItem),
+    path('api/rest/quitar_item/',            QuitarItem),
+    path('api/rest/enviar_cocina/',          EnviarCocina),
+    path('api/rest/pedir_cuenta/',           PedirCuenta),
+    path('api/rest/facturar_mesa/',          FacturarMesa),
+    path('api/rest/cancelar_pedido/',        CancelarPedido),
+    path('api/rest/comandas/',               VistaComanda),
+    path('api/rest/marcar_listo/',           MarcarListoItem),
+    path('api/rest/marcar_listo_pedido/',    MarcarListoPedido),
+    path('api/rest/historial/',              HistorialPedidos),
+    path('api/rest/carta_menu/',             ObtenerCartaMenu),
+
     # ── Contabilidad — Configuración ──────────────────────────────────────────
     path('api/contab/Ejercicios/',            GestionEjercicios,        name='GestionEjercicios'),
     path('api/contab/Ejercicios/<int:pk>/',   DetalleEjercicio,         name='DetalleEjercicio'),
@@ -210,4 +273,25 @@ urlpatterns = [
     path('api/contab/BalanceSumasYSaldos/',   InformeBalanceSumasYSaldos, name='InformeBalanceSumasYSaldos'),
     path('api/contab/EstadoResultados/',      InformeEstadoResultados,    name='InformeEstadoResultados'),
     path('api/contab/BalanceGeneral/',        InformeBalanceGeneral,      name='InformeBalanceGeneral'),
+
+    # Informes Impositivos:
+    path('api/impositivo/libros-iva/',                LibrosIVA),
+    path('api/impositivo/libros-iva/<int:libro_id>/', EliminarLibroIVA),
+    path('api/impositivo/libros-iva/<int:libro_id>/datos/', DatosLibroIVA),
+    path('api/impositivo/iva-digital/',               GenerarIVADigital),
+    path('api/impositivo/ddjj/',                      DeclaracionesJuradas),
+    path('api/impositivo/ddjj/<int:ddjj_id>/rectificar/', RectificarDDJJ),
+    path('api/impositivo/ddjj/<int:ddjj_id>/pasar-cg/',   MarcarPasadoCG),
+    path('api/impositivo/analisis-operaciones/',      AnalisisOperaciones),
+    path('api/impositivo/exportaciones/',             ListarExportaciones),
+    path('api/impositivo/exportaciones/<int:expo_id>/descargar/', DescargarExportacion),
+    path('api/impositivo/exportaciones/sicore/',      GenerarSICORE),
+    path('api/impositivo/exportaciones/sifere/',      GenerarSIFERE),
+    path('api/impositivo/exportaciones/<str:aplicativo_slug>/', GenerarExportacionGenerica),
+    path('api/impositivo/monotributistas/ventas-pdv/',        VentasPorPuntoDeVenta),
+    path('api/impositivo/monotributistas/ranking-clientes/',  RankingClientes),
+    path('api/impositivo/monotributistas/ranking-proveedores/', RankingProveedores),
+    path('api/impositivo/puntos-registracion/',       PuntosRegistracion),
+    path('api/impositivo/regimenes/',                 RegimenesEspeciales),
+    
 ]

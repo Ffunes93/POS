@@ -26,7 +26,7 @@ export default function AperturaCierreCaja({ user, cajaId, onCajaCambiada }) {
     setErrorFetch(false);
     try {
       // Le pasamos explícitamente el cajaId que viene de App.jsx (Ej: 31)
-      const res = await fetch(`http://localhost:8001/api/EstadoCaja/?caja_id=${cajaId}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/EstadoCaja/?caja_id=${cajaId}`);
       const data = await res.json();
       
       if (res.ok && data.status === 'abierta') {
@@ -47,7 +47,7 @@ export default function AperturaCierreCaja({ user, cajaId, onCajaCambiada }) {
     if (!fondoInicial || isNaN(fondoInicial)) return alert("Ingrese un monto válido.");
 
     try {
-      const res = await fetch('http://localhost:8001/api/AbrirCaja/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/AbrirCaja/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cajero_id: user.id, saldo_inicial: parseFloat(fondoInicial), pto_venta: ptoVenta })
@@ -76,7 +76,7 @@ export default function AperturaCierreCaja({ user, cajaId, onCajaCambiada }) {
     if (!window.confirm("¿Está seguro que desea CERRAR la caja actual?")) return;
 
     try {
-      const res = await fetch('http://localhost:8001/api/CerrarCaja/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/CerrarCaja/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nro_caja: estadoCaja.nro_caja, total_retirado: parseFloat(totalRetirado) })

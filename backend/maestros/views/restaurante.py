@@ -26,7 +26,7 @@ from rest_framework.response import Response
 
 from ..models import Articulos, Clientes
 from ..restaurant_models import (
-    RestSector, RestMesa, RestPedido, RestPedidoDet, RestComanda,
+    RestSector, RestMesa, RestPedido, RestPedidoDet, RestComanda, 
 )
 
 

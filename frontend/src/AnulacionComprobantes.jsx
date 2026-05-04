@@ -13,7 +13,7 @@ export default function AnulacionComprobantes() {
   useEffect(() => {
     const cargarTipos = async () => {
       try {
-        const res = await fetch('http://localhost:8001/api/GestionarTipocompCli/');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GestionarTipocompCli/`);
         const data = await res.json();
         
         if (data.status === 'success') {
@@ -40,7 +40,7 @@ export default function AnulacionComprobantes() {
     setComprobante(null);
 
     try {
-      const res = await fetch(`http://localhost:8001/api/BuscarComprobanteVenta/?tipo=${busqueda.tipo}&pto=${busqueda.pto}&nro=${busqueda.nro}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/BuscarComprobanteVenta/?tipo=${busqueda.tipo}&pto=${busqueda.pto}&nro=${busqueda.nro}`);
       const data = await res.json();
 
       if (res.ok && data.status === 'success') {
@@ -66,7 +66,7 @@ export default function AnulacionComprobantes() {
     setCargando(true);
 
     try {
-      const res = await fetch('http://localhost:8001/api/AnularComprobanteVenta/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/AnularComprobanteVenta/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ movim: comprobante.movim })
@@ -89,7 +89,7 @@ export default function AnulacionComprobantes() {
   const buscarUltimos50 = async () => {
     setCargando(true);
     try {
-      const res = await fetch('http://localhost:8001/api/UltimosComprobantesVenta/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/UltimosComprobantesVenta/`);
       const data = await res.json();
       if (res.ok && data.status === 'success') {
         setUltimos(data.data);
@@ -118,7 +118,7 @@ export default function AnulacionComprobantes() {
     setComprobante(null);
 
     try {
-      const res = await fetch(`http://localhost:8001/api/BuscarComprobanteVenta/?tipo=${comp.tipo}&pto=${ptoLimpio}&nro=${comp.nro}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/BuscarComprobanteVenta/?tipo=${comp.tipo}&pto=${ptoLimpio}&nro=${comp.nro}`);
       const data = await res.json();
 
       if (res.ok && data.status === 'success') {

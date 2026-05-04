@@ -109,7 +109,7 @@ export default function Facturacion({ user, cajaId }) {
   useEffect(() => {
     const cargarTiposComprobante = async () => {
       try {
-        const res = await fetch('http://localhost:8001/api/GestionarTipocompCli/');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GestionarTipocompCli/`);
         const data = await res.json();
         
         if (data.status === 'success') {
@@ -158,8 +158,8 @@ export default function Facturacion({ user, cajaId }) {
     setBuscando(true);
     try {
       const endpoint = tipoBusqueda === 'CLIENTE' 
-        ? `http://localhost:8001/api/ListarClientes/?buscar=${textoBusqueda}`
-        : `http://localhost:8001/api/ListarArticulosABM/?buscar=${textoBusqueda}`;
+        ? `${import.meta.env.VITE_API_URL}/api/ListarClientes/?buscar=${textoBusqueda}`
+        : `${import.meta.env.VITE_API_URL}/api/ListarArticulosABM/?buscar=${textoBusqueda}`;
         
       const res = await fetch(endpoint);
       const data = await res.json();
@@ -196,7 +196,7 @@ export default function Facturacion({ user, cajaId }) {
     e.preventDefault();
     if (!articuloSearchText) return;
     try {
-      const res = await fetch(`http://localhost:8001/api/ListarArticulosABM/?buscar=${articuloSearchText}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarArticulosABM/?buscar=${articuloSearchText}`);
       const data = await res.json();
       const articulo = data.data.find(a => 
         a.cod_art.toUpperCase() === articuloSearchText.toUpperCase() || 
@@ -331,7 +331,7 @@ export default function Facturacion({ user, cajaId }) {
     };
 
     try {
-      const res = await fetch('http://localhost:8001/api/IngresarComprobanteVentasJSON/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/IngresarComprobanteVentasJSON/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadVenta) 
@@ -379,7 +379,7 @@ export default function Facturacion({ user, cajaId }) {
             
             <AutoCompleteInput 
               placeholder="Escriba para buscar o seleccione consumidor final..." 
-              endpoint="http://localhost:8001/api/ListarClientes/" 
+              endpoint={`${import.meta.env.VITE_API_URL}/api/ListarClientes/`} 
               valorActual={cliente.denominacion}
               onChangeValor={(val) => setCliente({ ...cliente, denominacion: val })}
               onSelect={(item) => setCliente({ cod_cli: item.cod_cli, denominacion: item.denominacion })}
@@ -445,7 +445,7 @@ export default function Facturacion({ user, cajaId }) {
       <form onSubmit={buscarArticuloManual} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: '#2c3e50', padding: '15px', borderRadius: '6px' }}>
         <AutoCompleteInput 
           placeholder="Escanee el código de barras, SKU o escriba el nombre del artículo..." 
-          endpoint="http://localhost:8001/api/ListarArticulosABM/" 
+          endpoint={`${import.meta.env.VITE_API_URL}/api/ListarArticulosABM/`} 
           valorActual={articuloSearchText}
           onChangeValor={setArticuloSearchText}
           onSelect={(item) => { agregarAlCarrito(item); setArticuloSearchText(''); }} 

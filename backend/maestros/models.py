@@ -1606,3 +1606,5 @@ class Zetas(models.Model):
 from .contabilidad_models import *
 
 from .restaurant_models import *
+
+from .impositivo_models import *

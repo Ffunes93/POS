@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 const fmt = n => parseFloat(n || 0).toFixed(2);
 
 const s = {

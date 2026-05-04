@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API = 'http://localhost:8001'
+const API = `${import.meta.env.VITE_API_URL}`
 
 const ESTADO_CFG = {
   libre:         { bg: '#d5f5e3', border: '#27ae60', text: '#1e8449', etiqueta: '🟢 Libre'        },

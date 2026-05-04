@@ -11,7 +11,7 @@ export default function GestionFormasPago() {
   const fetchFormas = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8001/api/ListarFormasPago/');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarFormasPago/`);
       const data = await res.json();
       if (data.status === 'success') setFormas(data.data);
     } catch (error) {
@@ -38,7 +38,7 @@ export default function GestionFormasPago() {
   const guardarForma = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarFormaPago/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarFormaPago/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

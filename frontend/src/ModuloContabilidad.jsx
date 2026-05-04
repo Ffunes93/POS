@@ -10,7 +10,7 @@
 //   - Importación de Asientos (JSON)
 import { useState, useEffect, useCallback } from "react";
 
-const API = "http://localhost:8001/api/contab";
+const API = `${import.meta.env.VITE_API_URL}/api/contab`;
 const fmt = (n) =>
   Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoy = () => new Date().toISOString().slice(0, 10);

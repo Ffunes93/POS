@@ -12,7 +12,7 @@ export default function GestionClientes() {
   const fetchClientes = async (filtro = '') => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8001/api/ListarClientes/?buscar=${filtro}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ListarClientes/?buscar=${filtro}`);
       const data = await res.json();
       if (data.status === 'success') setClientes(data.data);
     } catch (error) {
@@ -43,7 +43,7 @@ export default function GestionClientes() {
   const guardarCliente = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8001/api/GuardarCliente/', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/GuardarCliente/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

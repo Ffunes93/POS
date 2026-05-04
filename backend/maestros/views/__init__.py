@@ -125,3 +125,14 @@ from .contabilidad import (  # noqa
     InformeLibroDiario, InformeMayorCuenta,
     InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
 )
+
+from .impositivo import (  # noqa
+    LibrosIVA, EliminarLibroIVA, DatosLibroIVA,
+    GenerarIVADigital,
+    DeclaracionesJuradas, RectificarDDJJ, MarcarPasadoCG,
+    AnalisisOperaciones,
+    ListarExportaciones, DescargarExportacion,
+    GenerarSICORE, GenerarSIFERE, GenerarExportacionGenerica,
+    VentasPorPuntoDeVenta, RankingClientes, RankingProveedores,
+    PuntosRegistracion, RegimenesEspeciales,
+)

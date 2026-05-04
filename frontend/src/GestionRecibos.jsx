@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 
-const API = 'http://localhost:8001/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 const s = { // inline styles helpers
   card:  { background: '#fff', border: '1px solid #d0d7de', borderRadius: '8px', padding: '18px', marginBottom: '14px' },
   label: { display: 'block', fontSize: '11px', fontWeight: '700', color: '#57606a', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '.4px' },
