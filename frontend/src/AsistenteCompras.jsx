@@ -46,7 +46,7 @@ export default function AsistenteCompras({ user, cajaId, onVolver }) {
     form.append('archivo', archivo)
 
     try {
-      const r = await fetch(`${API}/api/ia/procesar_factura/`, {
+      const r = await fetch(`${API}/api/ProcesarFacturaPDF/`, {
         method: 'POST',
         body:   form,
       })
@@ -69,7 +69,7 @@ export default function AsistenteCompras({ user, cajaId, onVolver }) {
   const confirmar = async () => {
     setEtapa('guardando')
     try {
-      const r = await fetch(`${API}/api/ia/confirmar_factura/`, {
+      const r = await fetch(`${API}/api/ConfirmarFactura/`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(datos),

@@ -89,6 +89,10 @@ from maestros.views.restaurante import (
     VistaComanda, MarcarListoItem, MarcarListoPedido,
     HistorialPedidos, ObtenerCartaMenu,
 )
+from maestros.views.ia_compras import (
+    ProcesarFacturaPDF, 
+    ConfirmarFactura
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -180,6 +184,10 @@ urlpatterns = [
     path('api/IngresarComprobanteComprasJSON/', IngresarComprobanteComprasJSON, name='IngresarComprobanteComprasJSON'),
     path('api/BuscarComprobanteCompra/',        BuscarComprobanteCompra,      name='BuscarComprobanteCompra'),
     path('api/AnularComprobanteCompra/',        AnularComprobanteCompra,      name='AnularComprobanteCompra'),
+
+    # ── IA Compras / Asistente AFIP ───────────────────────────────────────────
+    path('api/ProcesarFacturaPDF/',             ProcesarFacturaPDF,           name='ProcesarFacturaPDF'),
+    path('api/ConfirmarFactura/',               ConfirmarFactura,             name='ConfirmarFactura'),
 
     # ── CTA CTE Clientes ──────────────────────────────────────────────────────
     path('api/ResumenCtaCteCliente/', ResumenCtaCteCliente, name='ResumenCtaCteCliente'),
