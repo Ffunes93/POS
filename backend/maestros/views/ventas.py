@@ -435,6 +435,10 @@ def IngresarComprobanteVentasJSON(request):
                     except Exception:
                         pass  # no crítico (igual que el try/catch vacío del legacy)
 
+            # ── 11. Discriminación IVA por alícuota → ImpIVAAlicuotas ─────
+            from ._iva_alicuotas_helper import recalcular_iva_alicuotas
+            recalcular_iva_alicuotas(nuevo_movim, 'V')
+
         # Fuera del atomic: backup no crítico
         _guardar_json_respaldo(venta, request.data)
 
@@ -690,6 +694,11 @@ def AnularComprobanteVenta(request):
                     )
 
             Ventas.objects.filter(movim=movim_original).update(procesado=-1, anulado='S')
+
+             # ── Discriminación IVA por alícuota para la NC generada ──────
+             
+            from ._iva_alicuotas_helper import recalcular_iva_alicuotas
+            recalcular_iva_alicuotas(nuevo_movim, 'V')
 
         return Response({
             "status": "success",

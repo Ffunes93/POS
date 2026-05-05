@@ -206,3 +206,57 @@ class ImpRegimenEspecial(models.Model):
 
     def __str__(self):
         return f"[{self.tipo}] {self.codigo} — {self.descripcion}"
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+# DISCRIMINACIÓN DE IVA POR ALÍCUOTA — Sprint 2
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ImpIVAAlicuotas(models.Model):
+    """
+    Discriminación de IVA por alícuota para ventas y compras.
+
+    Fuente única de verdad usada por:
+      - Libro IVA con columnas por alícuota (10.5 / 21 / 27 / 5 / 2.5 / 0)
+      - Libro IVA Digital RG 4597 (archivo posicional REGINFO_CV_*_ALICUOTAS)
+      - DDJJ con discriminación por alícuota
+
+    Cómo se puebla:
+      - Comprobantes generados por el sistema → trigger en views/ventas.py y
+        views/compras.py que hace SUM(v_iva), SUM(total - v_iva) GROUP BY p_iva
+        del detalle e inserta una fila por alícuota presente. (Tarea 2)
+      - Importación ARCA → lee columnas "IVA 21%", "Neto Grav. IVA 21%", etc.
+        del Excel y persiste lo que tenga valor > 0. (Tarea 3)
+      - Datos históricos previos a Sprint 2 → comando de management
+        `popular_iva_alicuotas` que recorre la base existente. (Tarea 4)
+
+    Reglas:
+      - Una fila por (movim, circuito, alicuota). Si una venta tiene 3 items al
+        21% y 2 al 10.5%, son 2 filas (no 5).
+      - Operaciones exentas (Ventas.exento) NO se guardan acá — van en su campo
+        original. Esta tabla es solo para operaciones GRAVADAS.
+      - Notas de crédito/débito heredan el circuito de su factura asociada
+        (NCA/NDA → Ventas, NCA/NDA en compras → Compras).
+    """
+    CIRCUITO_CHOICES = [('V', 'Ventas'), ('C', 'Compras')]
+
+    movim        = models.BigIntegerField()
+    circuito     = models.CharField(max_length=1, choices=CIRCUITO_CHOICES)
+    alicuota     = models.DecimalField(max_digits=5, decimal_places=2,
+                       help_text='Porcentaje: 21.00, 10.50, 27.00, 5.00, 2.50, 0.00')
+    neto_gravado = models.DecimalField(max_digits=14, decimal_places=2, default=0,
+                       help_text='Base imponible para esta alícuota (sin IVA).')
+    iva          = models.DecimalField(max_digits=14, decimal_places=2, default=0,
+                       help_text='Importe de IVA correspondiente a esta alícuota.')
+    creado_en    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'imp_iva_alicuotas'
+        unique_together = [('movim', 'circuito', 'alicuota')]
+        indexes = [
+            models.Index(fields=['circuito', 'movim'], name='iva_alic_circ_mov_idx'),
+            models.Index(fields=['circuito', 'alicuota'], name='iva_alic_circ_ali_idx'),
+        ]
+        ordering = ['circuito', 'movim', 'alicuota']
+
+    def __str__(self):
+        return f"[{self.get_circuito_display()}] movim={self.movim} {self.alicuota}% IVA=${self.iva}"

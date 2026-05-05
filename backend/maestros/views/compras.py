@@ -392,6 +392,10 @@ def IngresarComprobanteComprasJSON(request):
                     compro_r       = '',
                     nro_compro_r   = 0,
                 )
+                
+            # ── Discriminación IVA por alícuota → ImpIVAAlicuotas ─────────
+            from ._iva_alicuotas_helper import recalcular_iva_alicuotas
+            recalcular_iva_alicuotas(nuevo_movim, 'C')
 
         return Response({
             "status":    "success",

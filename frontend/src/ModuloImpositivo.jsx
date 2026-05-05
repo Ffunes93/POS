@@ -193,19 +193,28 @@ function PanelLibroIVA({ circuito = 'V' }) {
                     </Btn>
                     {datos && (
                         <>
+                            {/* Sprint 2: export con columnas por alícuota */}
                             <Btn
                                 color='#059669'
                                 onClick={() => exportarExcel(
-                                    datos.comprobantes?.map(c => ({
-                                        Fecha: new Date(c.fecha_fact || c.fecha_comprob).toLocaleDateString('es-AR'),
-                                        Tipo: `${c.cod_comprob}${c.comprobante_letra || ''}`,
-                                        'Pto/Nro': `${c.comprobante_pto_vta}-${String(c.nro_comprob || 0).padStart(8, '0')}`,
-                                        [circuito === 'V' ? 'Cliente' : 'Proveedor']: renderNombre(c),
-                                        CUIT: c.nro_cuit || '',
-                                        Neto: parseFloat(c.neto || 0),
-                                        IVA: parseFloat(c.iva_1 || 0),
-                                        Total: parseFloat(c.tot_general || 0),
-                                    })),
+                                    datos.comprobantes?.map(c => {
+                                        const aliMap = {};
+                                        (c.alicuotas || []).forEach(a => {
+                                            aliMap[`Neto ${a.alicuota}%`] = a.neto_gravado;
+                                            aliMap[`IVA ${a.alicuota}%`] = a.iva;
+                                        });
+                                        return {
+                                            Fecha: new Date(c.fecha_fact || c.fecha_comprob).toLocaleDateString('es-AR'),
+                                            Tipo: `${c.cod_comprob}${c.comprobante_letra || ''}`,
+                                            'Pto/Nro': `${c.comprobante_pto_vta}-${String(c.nro_comprob || 0).padStart(8, '0')}`,
+                                            [circuito === 'V' ? 'Cliente' : 'Proveedor']: renderNombre(c),
+                                            CUIT: c.nro_cuit || '',
+                                            Neto: parseFloat(c.neto || 0),
+                                            IVA: parseFloat(c.iva_1 || 0),
+                                            ...aliMap,
+                                            Total: parseFloat(c.tot_general || 0),
+                                        };
+                                    }),
                                     `LibroIVA_${circuito === 'V' ? 'Ventas' : 'Compras'}_${desde}_${hasta}`
                                 )}
                             >
@@ -238,6 +247,31 @@ function PanelLibroIVA({ circuito = 'V' }) {
                         </div>
                     </div>
 
+                    {/* Sprint 2: discriminación por alícuota IVA */}
+                    {datos.alicuotas?.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>
+                                Discriminación por alícuota IVA
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {datos.alicuotas.map(a => (
+                                    <div key={a.alicuota} style={{
+                                        background: '#fff', border: '1px solid #cbd5e1',
+                                        borderRadius: 8, padding: '8px 14px', minWidth: 140,
+                                    }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f' }}>
+                                            IVA {a.alicuota.toLocaleString('es-AR')}%
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Neto Gravado</div>
+                                        <div style={{ fontSize: 13, fontWeight: 600 }}>${fmt(a.neto_gravado)}</div>
+                                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>IVA</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f766e' }}>${fmt(a.iva)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Tabla */}
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -248,6 +282,7 @@ function PanelLibroIVA({ circuito = 'V' }) {
                                     <th style={s.th}>Pto/Nro</th>
                                     <th style={s.th}>{circuito === 'V' ? 'Cliente' : 'Proveedor'}</th>
                                     <th style={s.th}>CUIT</th>
+                                    <th style={s.th}>Alícuotas</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>Neto</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>IVA</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>Total</th>
@@ -255,7 +290,7 @@ function PanelLibroIVA({ circuito = 'V' }) {
                             </thead>
                             <tbody>
                                 {datos.comprobantes?.length === 0 && (
-                                    <tr><td colSpan={8} style={{ ...s.td, textAlign: 'center', color: '#888' }}>Sin comprobantes para el período</td></tr>
+                                    <tr><td colSpan={9} style={{ ...s.td, textAlign: 'center', color: '#888' }}>Sin comprobantes para el período</td></tr>
                                 )}
                                 {datos.comprobantes?.map((c, i) => (
                                     <tr key={i}>
@@ -266,6 +301,20 @@ function PanelLibroIVA({ circuito = 'V' }) {
                                         <td style={s.td}>{c.comprobante_pto_vta}-{String(c.nro_comprob || 0).padStart(8, '0')}</td>
                                         <td style={s.td}>{renderNombre(c)}</td>
                                         <td style={{ ...s.td, fontSize: 12, color: '#555' }}>{c.nro_cuit || '—'}</td>
+                                        <td style={{ ...s.td, fontSize: 11 }}>
+                                            {c.alicuotas?.length > 0
+                                                ? c.alicuotas.map(a => (
+                                                    <span key={a.alicuota} style={{
+                                                        display: 'inline-block', marginRight: 4, marginBottom: 2,
+                                                        background: '#e0f2fe', color: '#0369a1',
+                                                        padding: '1px 6px', borderRadius: 8, fontWeight: 600,
+                                                    }}>
+                                                        {a.alicuota.toLocaleString('es-AR')}%
+                                                    </span>
+                                                ))
+                                                : <span style={{ color: '#bbb' }}>—</span>
+                                            }
+                                        </td>
                                         <td style={s.tdr}>${fmt(c.neto)}</td>
                                         <td style={s.tdr}>${fmt(c.iva_1)}</td>
                                         <td style={{ ...s.tdr, fontWeight: 700 }}>${fmt(c.tot_general)}</td>
@@ -279,7 +328,6 @@ function PanelLibroIVA({ circuito = 'V' }) {
         </div>
     );
 }
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // PANEL: LIBRO IVA DIGITAL
 // ═══════════════════════════════════════════════════════════════════════════════

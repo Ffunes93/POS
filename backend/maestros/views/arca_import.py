@@ -345,7 +345,11 @@ def _procesar_fila_compras(fila: dict, usuario: str) -> dict:
         cajero               = 1,
         procesado            = 0,
     )
-
+    # Discriminación IVA por alícuota desde las columnas del Excel ARCA
+    from ._iva_alicuotas_helper import persistir_iva_alicuotas_desde_arca
+    factor_pesos = tipo_cambio if moneda_excel.upper() == 'USD' else None
+    persistir_iva_alicuotas_desde_arca(nuevo_movim, 'C', fila, factor_pesos)
+    
     return {
         'estado': 'ok',
         'tipo': cod_arca, 'pto': pto_vta_str, 'nro': nro_factura,
@@ -446,6 +450,11 @@ def _procesar_fila_ventas(fila: dict, usuario: str) -> dict:
         cajero               = 1,
         vendedor             = 1,
     )
+    
+    # Discriminación IVA por alícuota desde las columnas del Excel ARCA
+    from ._iva_alicuotas_helper import persistir_iva_alicuotas_desde_arca
+    factor_pesos = tipo_cambio if moneda_excel.upper() == 'USD' else None
+    persistir_iva_alicuotas_desde_arca(nuevo_movim, 'V', fila, factor_pesos)
 
     return {
         'estado': 'ok',

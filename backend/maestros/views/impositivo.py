@@ -319,6 +319,7 @@ def DatosLibroIVA(request, libro_id):
             qs = qs.filter(comprobante_pto_vta=libro.punto_registracion_id)
 
         comprobantes = list(qs.values(
+            'movim',
             'fecha_fact', 'cod_comprob', 'comprobante_letra',
             'comprobante_pto_vta', 'nro_comprob', 'cod_cli',
             'neto', 'iva_1', 'exento', 'percepciones',
@@ -354,6 +355,7 @@ def DatosLibroIVA(request, libro_id):
             qs = qs.filter(comprobante_pto_vta=libro.punto_registracion_id)
 
         comprobantes = list(qs.values(
+            'movim',
             'fecha_comprob', 'cod_comprob', 'comprobante_letra',
             'comprobante_pto_vta', 'nro_comprob', 'cod_prov',
             'neto', 'iva_1', 'total', 'tot_general',
@@ -375,6 +377,37 @@ def DatosLibroIVA(request, libro_id):
             suma_iva=Sum('iva_1'),
             suma_total=Sum('tot_general'),
         )
+    # ── Discriminación por alícuota (Sprint 2) ───────────────────────────────
+    from ..impositivo_models import ImpIVAAlicuotas
+
+    movim_ids = [c.get('movim') for c in comprobantes if c.get('movim')]
+    if not movim_ids:
+        # Si values() no incluyó 'movim', re-derivarlo del queryset original
+        movim_ids = list(qs.values_list('movim', flat=True))
+
+    # Resumen por alícuota para los totales del libro
+    resumen_alicuotas = list(
+        ImpIVAAlicuotas.objects.filter(
+            circuito=libro.circuito, movim__in=movim_ids
+        ).values('alicuota').annotate(
+            neto_gravado=Sum('neto_gravado'),
+            iva=Sum('iva'),
+        ).order_by('alicuota')
+    )
+
+    # Detalle por comprobante (para enriquecer cada fila)
+    detalle_por_movim = {}
+    for fila in ImpIVAAlicuotas.objects.filter(
+        circuito=libro.circuito, movim__in=movim_ids
+    ).values('movim', 'alicuota', 'neto_gravado', 'iva'):
+        detalle_por_movim.setdefault(fila['movim'], []).append({
+            'alicuota': float(fila['alicuota']),
+            'neto_gravado': float(fila['neto_gravado']),
+            'iva': float(fila['iva']),
+        })
+
+    for c in comprobantes:
+        c['alicuotas'] = detalle_por_movim.get(c.get('movim'), [])    
 
     return Response({
         "status": "success",
@@ -386,6 +419,14 @@ def DatosLibroIVA(request, libro_id):
             "fecha_hasta": str(hasta),
         },
         "totales": {k: float(v or 0) for k, v in (totales or {}).items()},
+        "alicuotas": [
+            {
+                "alicuota": float(r['alicuota']),
+                "neto_gravado": float(r['neto_gravado'] or 0),
+                "iva": float(r['iva'] or 0),
+            }
+            for r in resumen_alicuotas
+        ],
         "comprobantes": comprobantes,
         "cantidad": len(comprobantes),
     })
