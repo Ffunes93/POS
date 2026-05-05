@@ -124,6 +124,14 @@ from .contabilidad import (  # noqa
     # Informes
     InformeLibroDiario, InformeMayorCuenta,
     InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
+    #sprint a
+)
+
+from .contabilidad_config import (  # noqa
+    ListarOCrearConfigCuentas,
+    DetalleConfigCuenta,
+    ConceptosDisponibles,
+    EstadoConfig,
 )
 
 from .impositivo import (  # noqa

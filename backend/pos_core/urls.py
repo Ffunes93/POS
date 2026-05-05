@@ -63,6 +63,9 @@ from maestros.views import (
     # Contabilidad — Informes
     InformeLibroDiario, InformeMayorCuenta,
     InformeBalanceSumasYSaldos, InformeEstadoResultados, InformeBalanceGeneral,
+    # sprint A
+    ListarOCrearConfigCuentas, DetalleConfigCuenta,
+    ConceptosDisponibles, EstadoConfig,
     # Informes Impositivos
     LibrosIVA, EliminarLibroIVA, DatosLibroIVA,
     GenerarIVADigital, DeclaracionesJuradas, RectificarDDJJ, MarcarPasadoCG,
@@ -282,6 +285,17 @@ urlpatterns = [
     path('api/contab/BalanceSumasYSaldos/',   InformeBalanceSumasYSaldos, name='InformeBalanceSumasYSaldos'),
     path('api/contab/EstadoResultados/',      InformeEstadoResultados,    name='InformeEstadoResultados'),
     path('api/contab/BalanceGeneral/',        InformeBalanceGeneral,      name='InformeBalanceGeneral'),
+
+    # ─── Sprint A · Configuración contable parametrizable ──────────
+    path('api/contab/Config/Cuentas/',
+         ListarOCrearConfigCuentas, name='contab_config_cuentas'),
+    path('api/contab/Config/Cuentas/<str:concepto>/',
+         DetalleConfigCuenta,        name='contab_config_cuenta_detalle'),
+    path('api/contab/Config/ConceptosDisponibles/',
+         ConceptosDisponibles,       name='contab_config_conceptos'),
+    path('api/contab/Config/Estado/',
+         EstadoConfig,               name='contab_config_estado'),
+
 
     # Informes Impositivos:
     path('api/impositivo/libros-iva/',                LibrosIVA),
