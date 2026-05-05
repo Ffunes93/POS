@@ -42,6 +42,8 @@ from maestros.views.bodega import (
     BodTrazabilidadView,
     # Fiscal / INV
     BodDeclaracionesINVView, BodGuiasTrasladoView, BodCertificadosAnalisisView,
+    # NUEVO: Libro de bodega INV
+    BodLibroBodegaView,
 )
 
 urlpatterns = [
@@ -101,6 +103,8 @@ urlpatterns = [
     path('declaraciones-inv/',              BodDeclaracionesINVView.as_view()),
     path('guias-traslado/',                 BodGuiasTrasladoView.as_view()),
     path('certificados-analisis/',          BodCertificadosAnalisisView.as_view()),
+    # NUEVO — libro de bodega consolidado
+    path('libro-bodega/',                   BodLibroBodegaView.as_view()),
 
     # Fase 1 — Fermentación
     path('fermentacion/',                   BodFermentacionDiariaView.as_view()),

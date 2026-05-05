@@ -69,7 +69,8 @@ from maestros.views import (
     AnalisisOperaciones, ListarExportaciones, DescargarExportacion,
     GenerarSICORE, GenerarSIFERE, GenerarExportacionGenerica,
     VentasPorPuntoDeVenta, RankingClientes, RankingProveedores,
-    PuntosRegistracion, RegimenesEspeciales,)
+    PuntosRegistracion, RegimenesEspeciales,
+    ImportarMisComprobantesARCA,)
 from maestros.views.kits_promos import (
     # Kits / Combos BOM
     ListarKits, GuardarKit, EliminarKit,
@@ -301,7 +302,10 @@ urlpatterns = [
     path('api/impositivo/monotributistas/ranking-proveedores/', RankingProveedores),
     path('api/impositivo/puntos-registracion/',       PuntosRegistracion),
     path('api/impositivo/regimenes/',                 RegimenesEspeciales),
+    path('api/impositivo/regimenes/',                 RegimenesEspeciales),
+    path('api/impositivo/importar-arca/',             ImportarMisComprobantesARCA),
 
+    # Bodega:
     path('api/bodega/', include('maestros.bodega_urls')),
     
 ]

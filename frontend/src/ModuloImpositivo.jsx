@@ -1,19 +1,29 @@
 /**
  * ModuloImpositivo.jsx — Módulo Informes Impositivos
- * Migración de Bejerman Web → React
+ * Sprint 1 (Mayo 2026)
+ *
+ * Cambios:
+ *   B4  Libro IVA Compras llamaba a /api/InformeEgresos/ (egresos de caja).
+ *       Ahora ambos circuitos consultan /api/impositivo/libros-iva/ correctamente
+ *       (POST cabecera → GET datos).
+ *   B11 Botón "Imprimir" agregado al Libro IVA (paridad con LibroIVAVentas legacy).
+ *   B16 Campo `denominacion` usado consistentemente para Compras (ya no `nom_proveedor`).
+ *   AFIP → ARCA en labels de UI (Decreto 953/2024).
+ *   "Presentación Semestral" → "Reporte interno" (Ley 27.743 derogó el régimen).
+ *   Mensajes de advertencia agregados donde el backend devuelve `advertencia`.
  *
  * Submódulos:
  *  - Libro IVA Ventas / Compras
  *  - Libro IVA Digital (TXT)
  *  - Declaraciones Juradas
- *  - Análisis de Operaciones
+ *  - Análisis de Operaciones (con paginación)
  *  - Exportaciones (SICORE, SIFERE, Genérico)
- *  - Monotributistas (PDV, Rankings)
+ *  - Monotributistas (PDV, Rankings) — reporte interno
  */
 import { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
+import PanelImportarARCA from './PanelImportarARCA';
 const API = `${import.meta.env.VITE_API_URL}/api/impositivo`;
-const API_MAIN = import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL}`;
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -50,12 +60,16 @@ const Btn = ({ children, onClick, color = '#2563eb', secondary, disabled, sm }) 
 
 const Msg = ({ msg }) => {
     if (!msg) return null;
-    const ok = msg.tipo === 'ok';
+    const colors = {
+        ok:    { bg: '#d1fae5', color: '#065f46', border: '#6ee7b7' },
+        error: { bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
+        warn:  { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+    };
+    const c = colors[msg.tipo] || colors.error;
     return (
         <div style={{
             padding: '10px 16px', borderRadius: 6, marginBottom: 14, fontSize: 13, fontWeight: 600,
-            background: ok ? '#d1fae5' : '#fee2e2', color: ok ? '#065f46' : '#991b1b',
-            border: `1px solid ${ok ? '#6ee7b7' : '#fca5a5'}`,
+            background: c.bg, color: c.color, border: `1px solid ${c.border}`,
         }}>{msg.texto}</div>
     );
 };
@@ -94,34 +108,69 @@ const exportarExcel = (rows, nombre) => {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PANEL: LIBRO IVA VENTAS / COMPRAS
+// PANEL: LIBRO IVA VENTAS / COMPRAS  — B4 + B11 + B16
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelLibroIVA({ circuito = 'V' }) {
     const titulo = circuito === 'V' ? '📗 Libro IVA Ventas' : '📕 Libro IVA Compras';
-    const hoy = new Date().toISOString().split('T')[0];
-    const primer = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    const _hoy = hoy();
+    const _primer = primerDiaMes();
 
-    const [desde, setDesde] = useState(primer);
-    const [hasta, setHasta] = useState(hoy);
+    const [desde, setDesde] = useState(_primer);
+    const [hasta, setHasta] = useState(_hoy);
     const [datos, setDatos] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [msg, setMsg] = useState(null);
 
+    // ── B4 FIX: ambos circuitos van por /api/impositivo/libros-iva/ ──
+    // Flujo: 1) POST crea cabecera del libro → recibe {id}.
+    //        2) GET /<id>/datos/ trae los comprobantes formateados.
+    // El endpoint legacy /api/InformeLibroIVAVentas/ se conserva pero
+    // este módulo usa siempre el módulo impositivo (incluye totales por
+    // circuito y maneja Compras vs Ventas internamente).
     const consultar = async () => {
         setCargando(true); setMsg(null); setDatos(null);
-        const url = circuito === 'V'
-            ? `${API_MAIN}/api/InformeLibroIVAVentas/?desde=${desde}&hasta=${hasta}`
-            : `${API_MAIN}/api/InformeEgresos/?desde=${desde}&hasta=${hasta}`;
 
-        const r = await fetch(url);
-        const d = await r.json();
-        if (d.status === 'success') {
-            setDatos(d);
-        } else {
-            setMsg({ tipo: 'error', texto: d.mensaje || 'Error al obtener datos.' });
+        try {
+            // 1. Crear cabecera (provisorio, descartable)
+            const r1 = await fetch(`${API}/libros-iva/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    circuito,
+                    fecha_desde: desde,
+                    fecha_hasta: hasta,
+                    tipo: 'P',
+                    usuario: 'admin',
+                }),
+            });
+            const d1 = await r1.json();
+            if (d1.status !== 'success') {
+                setMsg({ tipo: 'error', texto: d1.mensaje || 'Error al crear el libro.' });
+                setCargando(false); return;
+            }
+            const libroId = d1.id;
+
+            // 2. Consultar datos del libro
+            const r2 = await fetch(`${API}/libros-iva/${libroId}/datos/`);
+            const d2 = await r2.json();
+            if (d2.status === 'success') {
+                setDatos(d2);
+            } else {
+                setMsg({ tipo: 'error', texto: d2.mensaje || 'Error al obtener datos.' });
+            }
+        } catch (e) {
+            setMsg({ tipo: 'error', texto: 'Error de red: ' + e.message });
         }
         setCargando(false);
     };
+
+    // ── B11: Botón Imprimir ──
+    const imprimir = () => {
+        window.print();
+    };
+
+    // ── B16: usar `denominacion` consistentemente (no `nom_proveedor`) ──
+    const renderNombre = (c) => c.denominacion || '—';
 
     return (
         <div style={s.card}>
@@ -143,26 +192,30 @@ function PanelLibroIVA({ circuito = 'V' }) {
                         {cargando ? 'Consultando...' : '📊 Generar Libro'}
                     </Btn>
                     {datos && (
-                        <Btn
-                            color='#059669'
-                            onClick={() => exportarExcel(
-                                datos.comprobantes?.map(c => ({
-                                    Fecha: new Date(c.fecha_fact || c.fecha_comprob).toLocaleDateString('es-AR'),
-                                    Tipo: `${c.cod_comprob}${c.comprobante_letra || ''}`,
-                                    'Pto/Nro': `${c.comprobante_pto_vta}-${String(c.nro_comprob || 0).padStart(8, '0')}`,
-                                    [circuito === 'V' ? 'Cliente' : 'Proveedor']: c.denominacion || c.nom_proveedor || '',
-                                    Neto: parseFloat(c.neto || 0),
-                                    IVA: parseFloat(c.iva_1 || 0),
-                                    Total: parseFloat(c.tot_general || 0),
-                                })),
-                                `LibroIVA_${circuito === 'V' ? 'Ventas' : 'Compras'}_${desde}_${hasta}`
-                            )}
-                        >
-                            📥 Exportar Excel
-                        </Btn>
+                        <>
+                            <Btn
+                                color='#059669'
+                                onClick={() => exportarExcel(
+                                    datos.comprobantes?.map(c => ({
+                                        Fecha: new Date(c.fecha_fact || c.fecha_comprob).toLocaleDateString('es-AR'),
+                                        Tipo: `${c.cod_comprob}${c.comprobante_letra || ''}`,
+                                        'Pto/Nro': `${c.comprobante_pto_vta}-${String(c.nro_comprob || 0).padStart(8, '0')}`,
+                                        [circuito === 'V' ? 'Cliente' : 'Proveedor']: renderNombre(c),
+                                        CUIT: c.nro_cuit || '',
+                                        Neto: parseFloat(c.neto || 0),
+                                        IVA: parseFloat(c.iva_1 || 0),
+                                        Total: parseFloat(c.tot_general || 0),
+                                    })),
+                                    `LibroIVA_${circuito === 'V' ? 'Ventas' : 'Compras'}_${desde}_${hasta}`
+                                )}
+                            >
+                                📥 Exportar Excel
+                            </Btn>
+                            {/* B11: Imprimir */}
+                            <Btn color='#475569' onClick={imprimir}>🖨️ Imprimir</Btn>
+                        </>
                     )}
                 </div>
-
             </div>
 
             {/* Totales */}
@@ -194,6 +247,7 @@ function PanelLibroIVA({ circuito = 'V' }) {
                                     <th style={s.th}>Tipo</th>
                                     <th style={s.th}>Pto/Nro</th>
                                     <th style={s.th}>{circuito === 'V' ? 'Cliente' : 'Proveedor'}</th>
+                                    <th style={s.th}>CUIT</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>Neto</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>IVA</th>
                                     <th style={{ ...s.th, textAlign: 'right' }}>Total</th>
@@ -201,7 +255,7 @@ function PanelLibroIVA({ circuito = 'V' }) {
                             </thead>
                             <tbody>
                                 {datos.comprobantes?.length === 0 && (
-                                    <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#888' }}>Sin comprobantes para el período</td></tr>
+                                    <tr><td colSpan={8} style={{ ...s.td, textAlign: 'center', color: '#888' }}>Sin comprobantes para el período</td></tr>
                                 )}
                                 {datos.comprobantes?.map((c, i) => (
                                     <tr key={i}>
@@ -210,7 +264,8 @@ function PanelLibroIVA({ circuito = 'V' }) {
                                         </td>
                                         <td style={s.td}>{c.cod_comprob}{c.comprobante_letra || ''}</td>
                                         <td style={s.td}>{c.comprobante_pto_vta}-{String(c.nro_comprob || 0).padStart(8, '0')}</td>
-                                        <td style={s.td}>{c.denominacion || c.nom_proveedor || '—'}</td>
+                                        <td style={s.td}>{renderNombre(c)}</td>
+                                        <td style={{ ...s.td, fontSize: 12, color: '#555' }}>{c.nro_cuit || '—'}</td>
                                         <td style={s.tdr}>${fmt(c.neto)}</td>
                                         <td style={s.tdr}>${fmt(c.iva_1)}</td>
                                         <td style={{ ...s.tdr, fontWeight: 700 }}>${fmt(c.tot_general)}</td>
@@ -244,7 +299,12 @@ function PanelIVADigital() {
         const d = await r.json();
         if (d.status === 'success') {
             setResult(d);
-            setMsg({ tipo: 'ok', texto: `Archivo generado: ${d.registros} registros.` });
+            const baseTxt = `Archivo generado: ${d.registros} registros.`;
+            if (d.advertencia) {
+                setMsg({ tipo: 'warn', texto: `${baseTxt} ⚠️ ${d.advertencia}` });
+            } else {
+                setMsg({ tipo: 'ok', texto: baseTxt });
+            }
         } else {
             setMsg({ tipo: 'error', texto: d.mensaje });
         }
@@ -255,8 +315,8 @@ function PanelIVADigital() {
         <div style={s.card}>
             <h3 style={{ marginTop: 0, color: '#1e3a5f' }}>💾 Libro IVA Digital</h3>
             <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>
-                Genera el archivo .TXT para presentar al sistema IVA Digital de AFIP.
-                <strong style={{ color: '#b45309' }}> ⚠️ Nota: el prorrateo por comprobante no está disponible en esta versión.</strong>
+                Genera el archivo .TXT para presentar al sistema IVA Digital de ARCA.
+                <strong style={{ color: '#b45309' }}> ⚠️ Versión preliminar Sprint 1: el formato oficial RG 4597 (5 archivos posicionales) llega en Sprint 2.</strong>
             </p>
 
             <Msg msg={msg} />
@@ -334,7 +394,12 @@ function PanelDDJJ() {
         });
         const d = await r.json();
         if (d.status === 'success') {
-            setMsg({ tipo: 'ok', texto: `${d.mensaje} | Débito: $${fmt(d.debito_fiscal)} | Crédito: $${fmt(d.credito_fiscal)} | Saldo: $${fmt(d.saldo_a_pagar)}` });
+            const baseTxt = `${d.mensaje} | Débito: $${fmt(d.debito_fiscal)} | Crédito: $${fmt(d.credito_fiscal)} | Saldo: $${fmt(d.saldo_a_pagar)}`;
+            if (d.advertencia) {
+                setMsg({ tipo: 'warn', texto: `${baseTxt} ⚠️ ${d.advertencia}` });
+            } else {
+                setMsg({ tipo: 'ok', texto: baseTxt });
+            }
             setEditando(false);
             cargar();
         } else {
@@ -453,26 +518,44 @@ function PanelDDJJ() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PANEL: ANÁLISIS DE OPERACIONES
+// PANEL: ANÁLISIS DE OPERACIONES (con paginación — B10)
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelAnalisisOp() {
-    const [form, setForm] = useState({ circuito: 'V', periodo_desde: periodoActual(), periodo_hasta: periodoActual(), formato: 'R' });
+    const [form, setForm] = useState({
+        circuito: 'V',
+        periodo_desde: periodoActual(),
+        periodo_hasta: periodoActual(),
+        formato: 'R',
+        limit: 500,
+        offset: 0,
+    });
     const [datos, setDatos] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [msg, setMsg] = useState(null);
 
-    const consultar = async () => {
-        setCargando(true); setMsg(null); setDatos(null);
+    const consultar = async (overrides = {}) => {
+        setCargando(true); setMsg(null);
+        const payload = { ...form, ...overrides };
         const r = await fetch(`${API}/analisis-operaciones/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form),
+            body: JSON.stringify(payload),
         });
         const d = await r.json();
-        if (d.status === 'success') setDatos(d);
-        else setMsg({ tipo: 'error', texto: d.mensaje });
+        if (d.status === 'success') {
+            setDatos(d);
+            if (overrides.offset !== undefined) {
+                setForm(prev => ({ ...prev, offset: overrides.offset }));
+            }
+        } else {
+            setMsg({ tipo: 'error', texto: d.mensaje });
+            setDatos(null);
+        }
         setCargando(false);
     };
+
+    const paginaSiguiente = () => consultar({ offset: form.offset + form.limit });
+    const paginaAnterior  = () => consultar({ offset: Math.max(0, form.offset - form.limit) });
 
     return (
         <div style={s.card}>
@@ -481,27 +564,35 @@ function PanelAnalisisOp() {
 
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
                 <Campo label='Circuito' flex='1 1 150px'>
-                    <select style={s.select} value={form.circuito} onChange={e => setForm(p => ({ ...p, circuito: e.target.value }))}>
+                    <select style={s.select} value={form.circuito} onChange={e => setForm(p => ({ ...p, circuito: e.target.value, offset: 0 }))}>
                         <option value='V'>Ventas</option>
                         <option value='C'>Compras</option>
                     </select>
                 </Campo>
                 <Campo label='Período DDJJ Desde *' flex='1 1 150px'>
                     <input style={s.input} value={form.periodo_desde} placeholder='YYYY-MM'
-                        onChange={e => setForm(p => ({ ...p, periodo_desde: e.target.value }))} />
+                        onChange={e => setForm(p => ({ ...p, periodo_desde: e.target.value, offset: 0 }))} />
                 </Campo>
                 <Campo label='Período DDJJ Hasta *' flex='1 1 150px'>
                     <input style={s.input} value={form.periodo_hasta} placeholder='YYYY-MM'
-                        onChange={e => setForm(p => ({ ...p, periodo_hasta: e.target.value }))} />
+                        onChange={e => setForm(p => ({ ...p, periodo_hasta: e.target.value, offset: 0 }))} />
                 </Campo>
                 <Campo label='Formato' flex='1 1 150px'>
-                    <select style={s.select} value={form.formato} onChange={e => setForm(p => ({ ...p, formato: e.target.value }))}>
+                    <select style={s.select} value={form.formato} onChange={e => setForm(p => ({ ...p, formato: e.target.value, offset: 0 }))}>
                         <option value='R'>Resumido</option>
                         <option value='D'>Detallado</option>
                     </select>
                 </Campo>
+                <Campo label='Límite página' flex='0 0 110px'>
+                    <select style={s.select} value={form.limit} onChange={e => setForm(p => ({ ...p, limit: parseInt(e.target.value), offset: 0 }))}>
+                        <option value={100}>100</option>
+                        <option value={500}>500</option>
+                        <option value={1000}>1.000</option>
+                        <option value={5000}>5.000</option>
+                    </select>
+                </Campo>
                 <div style={{ paddingTop: 20 }}>
-                    <Btn onClick={consultar} disabled={cargando}>
+                    <Btn onClick={() => consultar({ offset: 0 })} disabled={cargando}>
                         {cargando ? 'Consultando...' : '🔍 Consultar'}
                     </Btn>
                 </div>
@@ -521,10 +612,30 @@ function PanelAnalisisOp() {
                             </div>
                         ))}
                         <div style={{ background: '#f5f3ff', borderRadius: 8, padding: '10px 20px', flex: '1 1 100px', textAlign: 'center', border: '1px solid #ddd6fe' }}>
-                            <div style={{ fontSize: 11, color: '#888' }}>Registros</div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: '#7c3aed' }}>{datos.cantidad}</div>
+                            <div style={{ fontSize: 11, color: '#888' }}>Registros{form.formato === 'D' && datos.total_registros !== datos.cantidad ? ' (mostrados / total)' : ''}</div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: '#7c3aed' }}>
+                                {datos.cantidad}
+                                {form.formato === 'D' && datos.total_registros !== datos.cantidad
+                                    ? <span style={{ fontSize: 12, color: '#888' }}> / {datos.total_registros}</span>
+                                    : null}
+                            </div>
                         </div>
                     </div>
+
+                    {/* Paginación (solo en formato detallado) */}
+                    {form.formato === 'D' && datos.total_registros > form.limit && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                            <Btn sm secondary color='#475569' disabled={form.offset === 0} onClick={paginaAnterior}>
+                                ← Página anterior
+                            </Btn>
+                            <span style={{ fontSize: 12, color: '#666' }}>
+                                Mostrando {form.offset + 1}–{Math.min(form.offset + form.limit, datos.total_registros)} de {datos.total_registros}
+                            </span>
+                            <Btn sm secondary color='#475569' disabled={!datos.tiene_mas} onClick={paginaSiguiente}>
+                                Página siguiente →
+                            </Btn>
+                        </div>
+                    )}
 
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -568,7 +679,7 @@ function PanelAnalisisOp() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PANEL: EXPORTACIONES APLICATIVOS
+// PANEL: EXPORTACIONES APLICATIVOS  (AFIP→ARCA en labels)
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelExportaciones() {
     const [sub, setSub] = useState('SICORE');
@@ -599,11 +710,20 @@ function PanelExportaciones() {
 
         const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const d = await r.json();
-        if (d.status === 'success') { setResult(d); setMsg({ tipo: 'ok', texto: d.mensaje }); cargarHistorial(); }
-        else setMsg({ tipo: 'error', texto: d.mensaje });
+        if (d.status === 'success') {
+            setResult(d);
+            const msgTexto = d.advertencia
+                ? `${d.mensaje} ⚠️ ${d.advertencia}`
+                : d.mensaje;
+            setMsg({ tipo: d.advertencia ? 'warn' : 'ok', texto: msgTexto });
+            cargarHistorial();
+        } else {
+            setMsg({ tipo: 'error', texto: d.mensaje });
+        }
         setCargando(false);
     };
 
+    // AFIP → ARCA en labels (Decreto 953/2024)
     const APLICATIVOS = [
         { id: 'SICORE', label: 'SICORE' }, { id: 'SIFERE', label: 'SIFERE' },
         { id: 'SIACER', label: 'SIACER' }, { id: 'EARCIBA', label: 'e-ARCIBA' },
@@ -628,7 +748,13 @@ function PanelExportaciones() {
                 <Campo label='Tipo Impuesto'><select style={s.select} value={sifere.tipo_impuesto} onChange={e => setSifere(p => ({ ...p, tipo_impuesto: e.target.value }))}><option value='P'>Percepciones</option><option value='R'>Retenciones</option><option value='B'>Recaud. Bancarias</option><option value='A'>Perc. Aduaneras</option></select></Campo>
                 <Campo label='Desde'><input type='date' style={s.input} value={sifere.fecha_desde} onChange={e => setSifere(p => ({ ...p, fecha_desde: e.target.value }))} /></Campo>
                 <Campo label='Hasta'><input type='date' style={s.input} value={sifere.fecha_hasta} onChange={e => setSifere(p => ({ ...p, fecha_hasta: e.target.value }))} /></Campo>
-                <Campo label='Provincia (vacío=Todas)' flex='1 1 150px'><input style={s.input} value={sifere.provincia} placeholder='ej: 01' onChange={e => setSifere(p => ({ ...p, provincia: e.target.value }))} /></Campo>
+                <Campo label='Jurisd. COMARB (vacío=Todas)' flex='1 1 200px'>
+                    <select style={s.select} value={sifere.provincia} onChange={e => setSifere(p => ({ ...p, provincia: e.target.value }))}>
+                        <option value=''>Todas</option>
+                        <option value='901'>901 — Buenos Aires</option>
+                        <option value='924'>924 — CABA</option>
+                    </select>
+                </Campo>
             </div>
         );
         return (
@@ -642,7 +768,7 @@ function PanelExportaciones() {
 
     return (
         <div style={s.card}>
-            <h3 style={{ marginTop: 0, color: '#1e3a5f' }}>📤 Exportación a Aplicativos AFIP / Provinciales</h3>
+            <h3 style={{ marginTop: 0, color: '#1e3a5f' }}>📤 Exportación a Aplicativos ARCA / Provinciales</h3>
 
             {/* Selector de aplicativo */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
@@ -710,7 +836,7 @@ function PanelExportaciones() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PANEL: MONOTRIBUTISTAS
+// PANEL: MONOTRIBUTISTAS (rótulo actualizado — Ley 27.743 derogó cuatrimestral)
 // ═══════════════════════════════════════════════════════════════════════════════
 function PanelMonotributistas() {
     const [sub, setSub] = useState('pdv');
@@ -731,7 +857,14 @@ function PanelMonotributistas() {
 
     return (
         <div style={s.card}>
-            <h3 style={{ marginTop: 0, color: '#1e3a5f' }}>📊 Monotributistas — Presentación Semestral</h3>
+            <h3 style={{ marginTop: 0, color: '#1e3a5f' }}>📊 Monotributistas — Reporte interno</h3>
+            <div style={{
+                background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6,
+                padding: '8px 12px', marginBottom: 16, fontSize: 12, color: '#78350f',
+            }}>
+                ℹ️ Reporte interno. La presentación cuatrimestral monotributista fue derogada
+                por la Ley 27.743 (Bases, julio 2024).
+            </div>
 
             <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
                 {[['pdv', '🏪 Ventas por PDV'], ['clientes', '👥 Ranking Clientes'], ['proveedores', '🏭 Ranking Proveedores']].map(([id, label]) => (
@@ -779,7 +912,7 @@ function PanelMonotributistas() {
                             ) : (
                                 <tr key={i} style={{ background: i === 0 ? '#fffbeb' : 'transparent' }}>
                                     <td style={{ ...s.td, fontWeight: 700, color: i === 0 ? '#d97706' : 'inherit' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</td>
-                                    <td style={s.td}>{row.denominacion || row.nom || '—'}</td>
+                                    <td style={s.td}>{row.denominacion || '—'}</td>
                                     <td style={{ ...s.td, fontSize: 12 }}>{row.nro_cuit || '—'}</td>
                                     <td style={s.tdr}>{row.cantidad}</td>
                                     <td style={{ ...s.tdr, fontWeight: 700 }}>${fmt(row.total)}</td>
@@ -809,8 +942,10 @@ const MENU_ITEMS = [
     { id: 'iva-digital', label: '💾 IVA Digital (TXT)', grupo: 'iva' },
     { id: 'ddjj', label: '📋 Dec. Juradas (DDJJ)', grupo: 'ddjj' },
     { id: 'analisis', label: '🔍 Análisis Operaciones', grupo: 'ddjj' },
-    { id: 'exportaciones', label: '📤 Exportaciones AFIP', grupo: 'expo' },
+    { id: 'exportaciones', label: '📤 Exportaciones ARCA', grupo: 'expo' },
     { id: 'monotrib', label: '📊 Monotributistas', grupo: 'otros' },
+    { id: 'importar-arca', label: '📥 Importar de ARCA', grupo: 'iva' },
+
 ];
 
 const GRUPOS_IMP = [
@@ -832,6 +967,7 @@ export default function ModuloImpositivo() {
             case 'analisis': return <PanelAnalisisOp />;
             case 'exportaciones': return <PanelExportaciones />;
             case 'monotrib': return <PanelMonotributistas />;
+            case 'importar-arca': return <PanelImportarARCA />;
             default: return <PanelLibroIVA circuito='V' />;
         }
     };

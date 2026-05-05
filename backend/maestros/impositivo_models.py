@@ -1,6 +1,11 @@
 """
 impositivo_models.py — Módulo Informes Impositivos
-Modelos para libros IVA, declaraciones juradas y exportaciones a aplicativos AFIP.
+Modelos para libros IVA, declaraciones juradas y exportaciones a aplicativos ARCA/AFIP.
+
+Sprint 1 (Mayo 2026):
+  - B8: max_length de campos de auditoría aumentado de 20 a 50.
+  - Comentarios actualizados (AFIP → ARCA donde aplica, Decreto 953/2024).
+  - Sin cambios disruptivos sobre datos existentes (solo amplía columnas).
 
 Instrucciones de integración:
     Al final de backend/maestros/models.py agregar:
@@ -63,7 +68,7 @@ class ImpLibroIVA(models.Model):
     texto_encabezado    = models.TextField(blank=True, default='')
     # Auditoría
     creado_en           = models.DateTimeField(auto_now_add=True)
-    creado_por          = models.CharField(max_length=20, blank=True, default='')
+    creado_por          = models.CharField(max_length=50, blank=True, default='')   # B8: 20 → 50
 
     class Meta:
         db_table = 'imp_libros_iva'
@@ -102,7 +107,7 @@ class ImpDeclaracionJurada(models.Model):
     saldo_a_pagar        = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     # Auditoría
     emitido_en      = models.DateTimeField(auto_now_add=True)
-    emitido_por     = models.CharField(max_length=20, blank=True, default='')
+    emitido_por     = models.CharField(max_length=50, blank=True, default='')        # B8: 20 → 50
 
     class Meta:
         db_table = 'imp_declaraciones_juradas'
@@ -114,22 +119,22 @@ class ImpDeclaracionJurada(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EXPORTACIONES A APLICATIVOS
+# EXPORTACIONES A APLICATIVOS (ARCA/AFIP y provinciales)
 # ─────────────────────────────────────────────────────────────────────────────
 
 APLICATIVO_CHOICES = [
-    ('SICORE',   'SICORE — Retenciones/Percepciones AFIP'),
+    ('SICORE',   'SICORE — Retenciones/Percepciones ARCA'),
     ('SIFERE',   'SIFERE — IIBB Convenio Multilateral'),
     ('SIACER',   'SIACER — IIBB Entre Ríos'),
     ('EARCIBA',  'e-ARCIBA — IIBB CABA'),
-    ('SICOL',    'SICOL — Retenciones AFIP'),
-    ('REGELEC',  'Reg. Electrónica AFIP'),
+    ('SICOL',    'SICOL — Retenciones ARCA'),
+    ('REGELEC',  'Reg. Electrónica ARCA'),
     ('DUPELEC',  'Duplicados Electrónicos CAE/CAEA'),
-    ('SIRFT',    'SIRFT — IIBB Santa Fe (AFIP/Batres)'),
+    ('SIRFT',    'SIRFT — IIBB Santa Fe'),
     ('ARBA',     'ARBA A122R — IIBB Buenos Aires'),
-    ('SIJP',     'SIJP — Jubilaciones AFIP'),
-    ('SVINCUL',  'Sujetos Vinculados AFIP'),
-    ('SIRE',     'SIRE — Retenciones AFIP'),
+    ('SIJP',     'SIJP — Jubilaciones ARCA'),
+    ('SVINCUL',  'Sujetos Vinculados ARCA'),
+    ('SIRE',     'SIRE — Retenciones ARCA'),
     ('F8001',    'RG 3668 F8001 — Facturas M'),
     ('SIRCAR',   'SIRCAR — IIBB Córdoba'),
     ('SIPRIB',   'SIPRIB — IIBB Santa Fe DGR'),
@@ -139,7 +144,7 @@ APLICATIVO_CHOICES = [
 
 class ImpExportacionAplicativo(models.Model):
     """
-    Registro de cada exportación a aplicativo AFIP/provincial.
+    Registro de cada exportación a aplicativo ARCA/provincial.
     Guarda los parámetros utilizados y el archivo generado para auditoría legal.
     """
     ESTADO_CHOICES = [
@@ -162,9 +167,9 @@ class ImpExportacionAplicativo(models.Model):
     contenido_b64   = models.TextField(blank=True, default='',
                           help_text='Contenido del archivo en base64 para descarga')
     error_mensaje   = models.TextField(blank=True, default='')
-    # Auditoría — requerimiento legal AFIP
+    # Auditoría — requerimiento legal ARCA
     generado_en     = models.DateTimeField(auto_now_add=True)
-    generado_por    = models.CharField(max_length=20, blank=True, default='')
+    generado_por    = models.CharField(max_length=50, blank=True, default='')        # B8: 20 → 50
     cantidad_registros = models.IntegerField(default=0)
 
     class Meta:
@@ -182,7 +187,7 @@ class ImpExportacionAplicativo(models.Model):
 class ImpRegimenEspecial(models.Model):
     """
     Catálogo de regímenes especiales para SICORE / SIFERE.
-    Cargados manualmente o importados desde AFIP.
+    Cargados manualmente o importados desde ARCA.
     """
     TIPO_CHOICES = [
         ('SICORE', 'SICORE'),

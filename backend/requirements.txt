@@ -9,3 +9,6 @@ requests>=2.31.0
 lxml>=5.0.0
 # Procesamiento de facturas PDF
 pdfplumber>=0.11.0
+# Import Arca
+pandas>=2.0
+openpyxl>=3.1
