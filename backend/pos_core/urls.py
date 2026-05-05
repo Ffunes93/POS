@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from maestros.views import (
     # Sync
     GetArticulosJSON, GetClientesJSON, GetVendedoresJSON,
@@ -301,5 +301,7 @@ urlpatterns = [
     path('api/impositivo/monotributistas/ranking-proveedores/', RankingProveedores),
     path('api/impositivo/puntos-registracion/',       PuntosRegistracion),
     path('api/impositivo/regimenes/',                 RegimenesEspeciales),
+
+    path('api/bodega/', include('maestros.bodega_urls')),
     
 ]

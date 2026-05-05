@@ -1608,3 +1608,5 @@ from .contabilidad_models import *
 from .restaurant_models import *
 
 from .impositivo_models import *
+
+from .bodega_models import *

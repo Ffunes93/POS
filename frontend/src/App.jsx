@@ -16,6 +16,7 @@ import ModuloKitsPromos   from './ModuloKitsPromos'
 import ModuloRestaurante  from './ModuloRestaurante'
 import FacturacionElectronica from './FacturacionElectronica'
 import ModuloImpositivo   from './ModuloImpositivo'
+import ModuloBodega from './ModuloBodega'
 
 // Mapa de etiquetas para la barra de título
 const VISTA_LABELS = {
@@ -32,6 +33,7 @@ const VISTA_LABELS = {
   FE:           '🏛 Fact. Electrónica',
   RESTAURANTE:  '🍽 Restaurante',
   IMPOSITIVO:   '🏛 Informes Impositivos',
+  BODEGA:       '🍷 Bodega',
 }
 
 export default function App() {
@@ -62,7 +64,8 @@ export default function App() {
     '/kits-promos':  'KITS_PROMOS',
     '/fe':           'FE',
     '/restaurante':  'RESTAURANTE',
-    '/impositivo':   'IMPOSITIVO'
+    '/impositivo':   'IMPOSITIVO',
+    '/bodega': 'BODEGA',
   }
   
   // Obtenemos la clave de la vista según la URL, por defecto DASHBOARD
@@ -239,6 +242,8 @@ export default function App() {
           <Route path="/restaurante" element={<ModuloRestaurante user={user} cajaId={cajaId} />} />
           
           <Route path="/impositivo" element={<ModuloImpositivo />} />
+
+          <Route path="/bodega" element={<ModuloBodega />} />
           
           <Route path="/kits-promos" element={
             <div style={{ padding: '20px' }}>

@@ -31,6 +31,7 @@ export default function MenuPrincipal({ onNavegar }) {
     { vista: 'FE',           bg: '#6c3483', icono: '🧾', label: 'Fact. Electrónica' },
     { vista: 'RESTAURANTE',  bg: '#16a085', icono: '🍽', label: 'Restaurante' },
     { vista: 'IMPOSITIVO',   bg: '#0f766e', icono: '🏛', label: 'Informes Impositivos' },
+    { vista: 'BODEGA',       bg: '#6c3483', icono: '🍷', label: 'Bodega' },
   ];
 
   return (

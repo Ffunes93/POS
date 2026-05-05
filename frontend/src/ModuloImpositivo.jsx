@@ -12,8 +12,8 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-const API = 'http://localhost:8001/api/impositivo';
-const API_MAIN = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+const API = `${import.meta.env.VITE_API_URL}/api/impositivo`;
+const API_MAIN = import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL}`;
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

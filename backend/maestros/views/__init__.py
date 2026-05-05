@@ -136,3 +136,23 @@ from .impositivo import (  # noqa
     VentasPorPuntoDeVenta, RankingClientes, RankingProveedores,
     PuntosRegistracion, RegimenesEspeciales,
 )
+
+from .bodega import (  # noqa
+    BodDashboardView,
+    BodVarietalesView, BodInsumosView,
+    BodParcelasView, BodMaduracionView,
+    BodLaboresCulturalesView, BodTratamientosFitosanitariosView,
+    BodContratosUvaView, BodLiquidacionesUvaView,
+    BodTicketsBasculaView, BodAsignarTicketLoteView,
+    BodRecipientesView,
+    BodLotesGranelView, BodMovimientosGranelView,
+    BodOperacionesEnologicasView,
+    BodOrdenesElaboracionView, BodBalanceMasaView,
+    BodAnalisisView,
+    BodFichasProductoView, BodNoConformidadesView,
+    BodBarricasView, BodAsignacionBarricasView,
+    BodOrdenesEmbotelladoView, BodConfirmarEmbotelladoView,
+    BodCostosView,
+    BodTrazabilidadView,
+    BodDeclaracionesINVView, BodGuiasTrasladoView, BodCertificadosAnalisisView,
+)
